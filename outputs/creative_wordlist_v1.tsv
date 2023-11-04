@@ -1,0 +1,51 @@
+	model_name	temperature	max_tokens	output	top_p	frequency_penalty	presence_penalty	item_type
+0	gpt-4	1	2048	Sophia, Library, Ethan, Running	1	0	0	creative_scenario
+1	gpt-4	1	2048	Samantha, library, Alex, running	1	0	0	creative_scenario
+2	gpt-4	1	2048	Olivia, Library, Henry, running	1	0	0	creative_scenario
+3	gpt-4	1	2048	Sophia, library, Edward, jogging	1	0	0	creative_scenario
+4	gpt-4	1	2048	Evelyn, coffee shop, George, jogging	1	0	0	creative_scenario
+5	gpt-4	1	2048	Melissa, library, Henry, jogging	1	0	0	creative_scenario
+6	gpt-4	1	2048	Oliver, Library, Hannah, Jogging	1	0	0	creative_scenario
+7	gpt-4	1	2048	Madison, Library, Luke, Running	1	0	0	creative_scenario
+8	gpt-4	1	2048	Sarah, grocery store, Benjamin, dancing	1	0	0	creative_scenario
+9	gpt-4	1	2048	Madeline, Library, Richard, Dancing	1	0	0	creative_scenario
+10	gpt-4	1	2048	Melinda, Paris, Ethan, jogging.	1	0	0	creative_scenario
+11	gpt-4	1	2048	Sophia, library, Alex, studying	1	0	0	creative_scenario
+12	gpt-4	1	2048	Mabel, library, Fred, jogging	1	0	0	creative_scenario
+13	gpt-4	1	2048	Oliver, library, Samantha, jogging	1	0	0	creative_scenario
+14	gpt-4	1	2048	Sophia, library, Greg, jogging	1	0	0	creative_scenario
+15	gpt-4	1	2048	Sophia, Library, Ethan, Jogging	1	0	0	creative_scenario
+16	gpt-4	1	2048	Oliver, Library, Samantha, gardening	1	0	0	creative_scenario
+17	gpt-4	1	2048	Jessica, bookstore, Matthew, jogging	1	0	0	creative_scenario
+18	gpt-4	1	2048	Sophia, library, Daniel, jogging	1	0	0	creative_scenario
+19	gpt-4	1	2048	Martha, Library, Samuel, Gardening	1	0	0	creative_scenario
+20	gpt-4	1	2048	Miranda, Amsterdam, Keith, jogging	1	0	0	creative_scenario
+21	gpt-4	1	2048	Oliver, museum, Laura, running	1	0	0	creative_scenario
+22	gpt-4	1	2048	Madison, library, Harry, dancing	1	0	0	creative_scenario
+23	gpt-4	1	2048	Sophia, library, Henry, swimming	1	0	0	creative_scenario
+24	gpt-4	1	2048	Maria, forest, Henry, jogging	1	0	0	creative_scenario
+25	gpt-4	1	2048	Olivia, Quebec, Ethan, running	1	0	0	creative_scenario
+26	gpt-4	1	2048	Linda, coffee shop, Paul, jogging	1	0	0	creative_scenario
+27	gpt-4	1	2048	Oliver, library, Emily, dancing	1	0	0	creative_scenario
+28	gpt-4	1	2048	Hannah, library, Connor, running	1	0	0	creative_scenario
+29	gpt-4	1	2048	Laura, library, Mark, jogging	1	0	0	creative_scenario
+30	gpt-4	1	2048	Sophia, library, Daniel, running	1	0	0	creative_scenario
+31	gpt-4	1	2048	Evelyn, park, Thomas, jogging	1	0	0	creative_scenario
+32	gpt-4	1	2048	Mia, library, Noah, jogging	1	0	0	creative_scenario
+33	gpt-4	1	2048	Lily, Museum, Oliver, hiking	1	0	0	creative_scenario
+34	gpt-4	1	2048	Alexandra, Movie Theater, Benjamin, Dancing	1	0	0	creative_scenario
+35	gpt-4	1	2048	Olivia, library, Max, jogging	1	0	0	creative_scenario
+36	gpt-4	1	2048	Sophie, bookstore, Daniel, cycling	1	0	0	creative_scenario
+37	gpt-4	1	2048	Natalie, Starbucks, Ethan, studying	1	0	0	creative_scenario
+38	gpt-4	1	2048	Melissa, Bakery, Ethan, Dancing	1	0	0	creative_scenario
+39	gpt-4	1	2048	Rachel, park, Thomas, jogging	1	0	0	creative_scenario
+40	gpt-4	1	2048	Stella, Library, Jake, Running	1	0	0	creative_scenario
+41	gpt-4	1	2048	Oliver, Amsterdam, Lily, running	1	0	0	creative_scenario
+42	gpt-4	1	2048	Sophia, library, Richard, jogging	1	0	0	creative_scenario
+43	gpt-4	1	2048	Olivia, library, Ethan, jogging	1	0	0	creative_scenario
+44	gpt-4	1	2048	Olivia, library, Ethan, jogging	1	0	0	creative_scenario
+45	gpt-4	1	2048	Sophia, supermarket, Henry, jogging	1	0	0	creative_scenario
+46	gpt-4	1	2048	Sophie, library, Ethan, jogging	1	0	0	creative_scenario
+47	gpt-4	1	2048	Emily, supermarket, Oliver, jogging	1	0	0	creative_scenario
+48	gpt-4	1	2048	Charlotte, library, Ethan, gardening	1	0	0	creative_scenario
+49	gpt-4	1	2048	Sophie, library, Adam, jogging	1	0	0	creative_scenario
