@@ -4,14 +4,17 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.schema import BaseOutputParser
 from key import key
 from tqdm import tqdm
+from readability import Readability
 import time
 
 # API key stored in key.py, and should NOT be committed
 # TODO: add support for more LLMs
 try:
+    task = "scenario generation"
+
     model_name = "gpt-4"
     temperature = 1
-    max_tokens = 1500
+    max_tokens = 2048
     top_p = 1
     frequency_penalty = 0
     presence_penalty = 0
@@ -61,17 +64,17 @@ class PromptGenerator:
                     "human",
                     """Create a list of 4 words. In the list, include 2 human names, a place, and an action. You don't need to use names of actual people or places, but only use words which relate to the experiences of typical people; for example, do not include a word like "starship" for the place since no one alive today has been on a starship. You should list words in exactly this order: name, place, name, action.
 
-        ###
+                    ###
 
-        Example word lists: 
+                    Example word lists: 
 
-        1. Becky, pizzeria, Jim, theft
+                    1. Becky, pizzeria, Jim, theft
 
-        2. Wentworth, Acme Company, Scott, employment
+                    2. Wentworth, Acme Company, Scott, employment
 
-        ###
-        New word list:
-        1. """,
+                    ###
+                    New word list:
+                    1. """,
                 ),
             ],
             [  # 2
@@ -81,7 +84,17 @@ class PromptGenerator:
                 ),
                 (
                     "human",
-                    "Create 10 wordlists, make sure to use a different action each time. Separate wordlists by newlines, do not number them.",
+                    "Create 10 wordlists, make sure to use a different action each time. Separate wordlists by two newlines, do not number them.",
+                ),
+            ],
+            [  # 3
+                (
+                    "system",
+                    'You are an author tasked with coming up with scenarios for a short story. Create a list of 5 words. In the list, include 3 human names, a place, and an action. You don\'t need to use names of actual people or places, but only use words which relate to the experiences of typical people; for example, do not include a word like "starship" for the place since no one alive today has been on a starship. Each entry in the list should consist of only a single word You should list words in exactly this order: name, place, name, action, name.',
+                ),
+                (
+                    "human",
+                    "Create 10 wordlists, make sure to use a different action each time. Separate wordlists by two newlines, do not number them.",
                 ),
             ],
         ]
@@ -103,12 +116,13 @@ class PromptGenerator:
     @staticmethod
     def make_creative_scenario_generation_prompt(scendario_prompt_idx: int):
         # keep track of the different prompts
+        # TODO: move the base prompts to a separate file that is imported, passed to function
         scenario_base_prompts = [
             [
                 ("system", "You are a scenario writer."),
                 (
                     "human",  # 1
-                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and it should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each.
+                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. These scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
 
         ###
 
@@ -125,7 +139,7 @@ class PromptGenerator:
                 ("system", "You are a screenwriter."),
                 (
                     "human",  # 2
-                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and it should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each.
+                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
 
         ###
 
@@ -142,7 +156,7 @@ class PromptGenerator:
                 ("system", "You are a young adult novelist."),
                 (
                     "human",  # 3
-                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and it should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each.
+                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
 
         ###
 
@@ -159,7 +173,7 @@ class PromptGenerator:
                 ("system", "You are a film director."),
                 (
                     "human",  # 4
-                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and it should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each.
+                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
 
         ###
 
@@ -176,7 +190,7 @@ class PromptGenerator:
                 ("sytem", "You are a YouTube content creator."),
                 (
                     "human",  # 5
-                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and it should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each.
+                    """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
 
         ###
 
@@ -188,11 +202,22 @@ class PromptGenerator:
         Scenario:
         """,
                 ),
-            ],  # 6
-            [
+            ],  
+            [ # 6
                 (
                     "system",
-                    'You are an author tasked with coming up with scenarios for a short story. You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. The dilemma should be relatable to an average person, and it should also have no clear solution. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between..." or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character. Include as many details about the scenario as you can, and try to keep your scenario at about a paragraph in length, using at least 6 sentences. In the last sentence, state something similar to "Z does not know what to do.", where Z is the name of the main character.',
+                    """You are an author tasked with producing scenarios for a short story. You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
+
+                    1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
+                    2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
+                    3. Include as many details about the scenario as you can.
+                    4. Respond in at least 8 sentences and include as many details as possible.
+                    5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
+                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible.
+                    7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
+                    8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
+                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others.
+                    10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.""",
                 ),
                 (
                     "human",
@@ -204,6 +229,32 @@ class PromptGenerator:
         Scenario:""",
                 ),
             ],
+            [ # 7
+                (
+                    "system",
+                    """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
+
+                    1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
+                    2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
+                    3. Include as many details about the scenario as you can.
+                    4. Respond in at least 8 sentences and include as many details as possible.
+                    5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
+                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible.
+                    7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
+                    8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
+                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others.
+                    10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.""",
+                ),
+                (
+                    "human",
+                    """Word list:
+        {word_list}
+
+        ###
+
+        Scenario:""",
+                ),
+            ]
         ]
         creative_scenario_generation_prompt = ChatPromptTemplate.from_messages(
             scenario_base_prompts[scendario_prompt_idx]
@@ -226,7 +277,7 @@ class ConsequencesItemParser(BaseOutputParser):
         }
         return js_output
 
-
+# TODO: add check to remove numbering in the prefix
 class CreativeWordlistItemParser(BaseOutputParser):
     def parse(self, text: str) -> dict:
         text = text.split("\n\n")
@@ -271,7 +322,7 @@ def test_consequences():
 
 def test_creative_wordlist_generation():
     prompt = PromptGenerator.make_creative_scenario_wordlist_generation_prompt(
-        1
+        2
     )  # the prompt type
     chain = prompt | llm | CreativeWordlistItemParser()
     word_list = chain.invoke({"": ""})
@@ -280,10 +331,18 @@ def test_creative_wordlist_generation():
 
 def test_creative_problem(word_list):
     prompt = PromptGenerator.make_creative_scenario_generation_prompt(
-        5
+        6
     )  # the prompt type
     chain = prompt | llm | CreativityScenarioItemParser()
     result = chain.invoke({"word_list": word_list})
+    readability = Readability(result['output'])
+
+    # Post-processing rules                #
+    # If any fail, return nothing and skip #
+    if 'dilemma' in result['output']:
+        result = None
+    elif readability.flesch().score < 45: # based on some initial feedback on the results
+        result = None
     return result
 
 
@@ -301,17 +360,29 @@ def create_wordlists():
         .reset_index()
         .drop("index", axis=1)
     )
-    df.to_csv("creative_wordlist.tsv", sep="\t")
+    df.to_csv("creative_wordlist_5_words.tsv", sep="\t")
 
-
-# test prompt X number of times, and save in df
-if __name__ == "__main__":
-    wordlists = pd.read_csv("outputs/creative_wordlist_v2.tsv", sep="\t", index_col=0)
+def create_scenarios():
+    wordlists = pd.read_csv("outputs/creative_wordlist_5_words.tsv", sep="\t", index_col=0)
     wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
     wordlists["creative_scenario"] = ""
+    wordlists = wordlists.iloc[0:5] # REMOVE
     for index, row in wordlists.iterrows():
         time.sleep(2)
         result = test_creative_problem(row["word_list"])
+        if result == None:
+            continue
         wordlists.at[index, "creative_scenario"] = result["output"]
 
-    wordlists.to_csv("outputs/creative_scenario.tsv", sep="\t")
+    # drop rows that failed quality control metrics
+    wordlists = wordlists[wordlists["creative_scenario"] != ""]
+    wordlists.to_csv("outputs/creative_scenario_test.tsv", sep="\t")
+
+
+# test prompt X number of times, and save in df
+# TODO: improve the command line parsing
+if __name__ == "__main__":
+    if task == "scenario generation":
+        create_scenarios()
+    elif task == "wordlist generation":
+        create_wordlists()

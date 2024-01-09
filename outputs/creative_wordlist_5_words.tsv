@@ -1,0 +1,51 @@
+	model_name	temperature	max_tokens	output	top_p	frequency_penalty	presence_penalty	item_type
+0	gpt-3.5-turbo	1	1024	"1. Sarah, park, Michael, running, Emma"	1	0	0	creative_scenario
+1	gpt-3.5-turbo	1	1024	"2. David, library, Emily, studying, James"	1	0	0	creative_scenario
+2	gpt-3.5-turbo	1	1024	"3. Amy, cafe, John, chatting, Lily"	1	0	0	creative_scenario
+3	gpt-3.5-turbo	1	1024	"4. Mark, beach, Amanda, surfing, Lucas"	1	0	0	creative_scenario
+4	gpt-3.5-turbo	1	1024	"5. Rachel, gym, Daniel, lifting, Olivia"	1	0	0	creative_scenario
+5	gpt-3.5-turbo	1	1024	"6. Alex, office, Lisa, typing, Ethan"	1	0	0	creative_scenario
+6	gpt-3.5-turbo	1	1024	"7. Sophia, theater, Ryan, acting, Grace"	1	0	0	creative_scenario
+7	gpt-3.5-turbo	1	1024	"8. Matthew, museum, Jessica, exploring, Benjamin"	1	0	0	creative_scenario
+8	gpt-3.5-turbo	1	1024	"9. Emily, restaurant, Jacob, eating, Chloe"	1	0	0	creative_scenario
+9	gpt-3.5-turbo	1	1024	"10. Megan, stadium, Tyler, cheering, Ethan"	1	0	0	creative_scenario
+10	gpt-3.5-turbo	1	1024	"1. Emma, park, James, running, Lily"	1	0	0	creative_scenario
+11	gpt-3.5-turbo	1	1024	"2. Benjamin, cafe, Olivia, reading, Sophia"	1	0	0	creative_scenario
+12	gpt-3.5-turbo	1	1024	"3. Ethan, beach, Mia, swimming, Noah"	1	0	0	creative_scenario
+13	gpt-3.5-turbo	1	1024	"4. Ava, bookstore, William, browsing, Harper"	1	0	0	creative_scenario
+14	gpt-3.5-turbo	1	1024	"5. Lucas, gym, Charlotte, lifting, Elijah"	1	0	0	creative_scenario
+15	gpt-3.5-turbo	1	1024	"6. Amelia, zoo, Samuel, feeding, Michael"	1	0	0	creative_scenario
+16	gpt-3.5-turbo	1	1024	"7. Daniel, museum, Emily, exploring, Grace"	1	0	0	creative_scenario
+17	gpt-3.5-turbo	1	1024	"8. Olivia, theater, Ethan, watching, Benjamin"	1	0	0	creative_scenario
+18	gpt-3.5-turbo	1	1024	"9. Noah, garden, Lily, gardening, James"	1	0	0	creative_scenario
+19	gpt-3.5-turbo	1	1024	"10. Sophia, library, Lucas, studying, Emma"	1	0	0	creative_scenario
+20	gpt-3.5-turbo	1	1024	"Sarah, coffee shop, David, writing, Emily"	1	0	0	creative_scenario
+21	gpt-3.5-turbo	1	1024	"Michael, park, Emma, jogging, Jacob"	1	0	0	creative_scenario
+22	gpt-3.5-turbo	1	1024	"Olivia, library, Benjamin, studying, Ava"	1	0	0	creative_scenario
+23	gpt-3.5-turbo	1	1024	"Daniel, gym, Sophia, weightlifting, Noah"	1	0	0	creative_scenario
+24	gpt-3.5-turbo	1	1024	"Grace, bakery, Ethan, baking, Lily"	1	0	0	creative_scenario
+25	gpt-3.5-turbo	1	1024	"Andrew, beach, Chloe, surfing, James"	1	0	0	creative_scenario
+26	gpt-3.5-turbo	1	1024	"Isabella, restaurant, Jack, dining, Harper"	1	0	0	creative_scenario
+27	gpt-3.5-turbo	1	1024	"Lucas, bookstore, Mia, browsing, Alexander"	1	0	0	creative_scenario
+28	gpt-3.5-turbo	1	1024	"Victoria, theater, Matthew, acting, Amelia"	1	0	0	creative_scenario
+29	gpt-3.5-turbo	1	1024	"Nathan, museum, Olivia, painting, Ava"	1	0	0	creative_scenario
+30	gpt-3.5-turbo	1	1024	"1. Emily, Park, Jacob, Running, Samantha"	1	0	0	creative_scenario
+31	gpt-3.5-turbo	1	1024	"2. Benjamin, Cafe, Olivia, Chatting, Ethan"	1	0	0	creative_scenario
+32	gpt-3.5-turbo	1	1024	"3. Hannah, Library, Liam, Studying, Ava"	1	0	0	creative_scenario
+33	gpt-3.5-turbo	1	1024	"4. Daniel, Beach, Sophia, Surfing, Noah"	1	0	0	creative_scenario
+34	gpt-3.5-turbo	1	1024	"5. Lily, Restaurant, Ethan, Eating, Michael"	1	0	0	creative_scenario
+35	gpt-3.5-turbo	1	1024	"6. Grace, Museum, Lucas, Exploring, Chloe"	1	0	0	creative_scenario
+36	gpt-3.5-turbo	1	1024	"7. Mia, Gym, William, Exercising, Benjamin"	1	0	0	creative_scenario
+37	gpt-3.5-turbo	1	1024	"8. Oliver, Theater, Emily, Acting, Olivia"	1	0	0	creative_scenario
+38	gpt-3.5-turbo	1	1024	"9. Jack, Market, Charlotte, Shopping, Ryan"	1	0	0	creative_scenario
+39	gpt-3.5-turbo	1	1024	"10. Aiden, Stadium, Harper, Cheering, Isabella"	1	0	0	creative_scenario
+40	gpt-3.5-turbo	1	1024	"1. Emma, park, James, running, Lily"	1	0	0	creative_scenario
+41	gpt-3.5-turbo	1	1024	"2. Michael, library, Sophia, reading, Benjamin"	1	0	0	creative_scenario
+42	gpt-3.5-turbo	1	1024	"3. Olivia, coffee shop, Ethan, chatting, Ava"	1	0	0	creative_scenario
+43	gpt-3.5-turbo	1	1024	"4. Jack, beach, Emily, swimming, Noah"	1	0	0	creative_scenario
+44	gpt-3.5-turbo	1	1024	"5. Grace, bakery, Henry, baking, Chloe"	1	0	0	creative_scenario
+45	gpt-3.5-turbo	1	1024	"6. Liam, gym, Harper, lifting, Samuel"	1	0	0	creative_scenario
+46	gpt-3.5-turbo	1	1024	"7. Isabella, museum, Daniel, admiring, Mia"	1	0	0	creative_scenario
+47	gpt-3.5-turbo	1	1024	"8. Lucas, garden, Charlotte, planting, Oliver"	1	0	0	creative_scenario
+48	gpt-3.5-turbo	1	1024	"9. Amelia, bookstore, Benjamin, browsing, Lily"	1	0	0	creative_scenario
+49	gpt-3.5-turbo	1	1024	"10. Elijah, movie theater, Olivia, watching, Noah"	1	0	0	creative_scenario
