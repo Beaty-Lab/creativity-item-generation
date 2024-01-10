@@ -1,3 +1,5 @@
+import time
+import re
 import pandas as pd
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
@@ -5,34 +7,11 @@ from langchain.schema import BaseOutputParser
 from key import key
 from tqdm import tqdm
 from readability import Readability
-import time
+from random import randint
+from argparse import ArgumentParser
 
 # API key stored in key.py, and should NOT be committed
 # TODO: add support for more LLMs
-try:
-    task = "scenario generation"
-
-    model_name = "gpt-4"
-    temperature = 1
-    max_tokens = 2048
-    top_p = 1
-    frequency_penalty = 0
-    presence_penalty = 0
-    llm = ChatOpenAI(
-        model_name=model_name,
-        openai_api_key=key,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        model_kwargs={
-            "top_p": top_p,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
-        },
-    )
-except Exception:
-    print("Model failed to initialize. Please check your API key.")
-    exit(-1)
-
 
 # class for storing and manipulating prompts
 class PromptGenerator:
@@ -54,7 +33,7 @@ class PromptGenerator:
         return consequences_prompt
 
     # NOTE: few shots are currently baked into prompt
-    # TODO: make a parameter
+    # TODO: make the shots a parameter
     @staticmethod
     def make_creative_scenario_wordlist_generation_prompt(wordlist_prompt_idx: int):
         prompts = [
@@ -213,10 +192,10 @@ class PromptGenerator:
                     3. Include as many details about the scenario as you can.
                     4. Respond in at least 8 sentences and include as many details as possible.
                     5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
-                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible.
+                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible. It should be easy for someone with a high school education to read.
                     7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
                     8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
-                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others.
+                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others. Remember: do not suggest any possible solution in the scenario.
                     10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.""",
                 ),
                 (
@@ -229,7 +208,7 @@ class PromptGenerator:
         Scenario:""",
                 ),
             ],
-            [ # 7
+            [ # 7, 5 word scenario
                 (
                     "system",
                     """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
@@ -237,18 +216,47 @@ class PromptGenerator:
                     1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
                     2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
                     3. Include as many details about the scenario as you can.
-                    4. Respond in at least 8 sentences and include as many details as possible.
+                    4. Respond in at least 8 sentences and in a single paragraph.
                     5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
-                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible.
+                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible. It should be easy for someone with a high school education to read.
                     7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
                     8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
-                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others.
+                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others. Remember: do not suggest any possible solution in the scenario.
                     10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.""",
                 ),
                 (
                     "human",
                     """Word list:
         {word_list}
+
+        ###
+
+        Scenario:""",
+                ),
+            ],
+            [ # 8, including topic of dilemnia
+                (
+                    "system",
+                    """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
+
+                    1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
+                    2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
+                    3. Include as many details about the scenario as you can.
+                    4. Respond in at least 8 sentences and in a single paragraph.
+                    5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
+                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible. It should be easy for someone with a high school education to read.
+                    7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
+                    8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
+                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others. Remember: do not suggest any possible solution in the scenario.
+                    10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.""",
+                ),
+                (
+                    "human",
+                    """Word list:
+        {word_list}
+
+        Dilemma topic:
+        {topic}
 
         ###
 
@@ -277,10 +285,11 @@ class ConsequencesItemParser(BaseOutputParser):
         }
         return js_output
 
-# TODO: add check to remove numbering in the prefix
 class CreativeWordlistItemParser(BaseOutputParser):
     def parse(self, text: str) -> dict:
         text = text.split("\n\n")
+        text = [re.sub(r'([0-9.])+','', t) for t in text]
+        text = [t.strip('\n').strip(" ") for t in text]
         js_output = {
             "model_name": model_name,
             "temperature": temperature,
@@ -309,7 +318,6 @@ class CreativityScenarioItemParser(BaseOutputParser):
         return js_output
 
 
-# TODO: set up code for saving to csv for analysis
 # test the chain
 def test_consequences():
     prompt = PromptGenerator.make_consequence_prompt()
@@ -320,21 +328,35 @@ def test_consequences():
     return result
 
 
-def test_creative_wordlist_generation():
+def test_creative_wordlist_generation(prompt_idx: int):
     prompt = PromptGenerator.make_creative_scenario_wordlist_generation_prompt(
-        2
+        prompt_idx
     )  # the prompt type
     chain = prompt | llm | CreativeWordlistItemParser()
     word_list = chain.invoke({"": ""})
     return word_list
 
 
-def test_creative_problem(word_list):
+def test_creative_problem(word_list, prompt_idx: int):
+
+    # choose a topic at random to build the scenario
+    # these are written manually for now, could try LLM generated in the future
+    dilemma_topics = [
+        "secret crush",
+        "morality and ethics",
+        "greatest fear",
+        "greatest dream",
+        "past trauma",
+        "friendship versus work",
+        "multiple competing demands",
+        "family versus career"
+    ]
     prompt = PromptGenerator.make_creative_scenario_generation_prompt(
-        6
+        prompt_idx
     )  # the prompt type
+    topic = dilemma_topics[randint(0, len(dilemma_topics)-1)]
     chain = prompt | llm | CreativityScenarioItemParser()
-    result = chain.invoke({"word_list": word_list})
+    result = chain.invoke({"word_list": word_list, "topic": topic})
     readability = Readability(result['output'])
 
     # Post-processing rules                #
@@ -343,15 +365,15 @@ def test_creative_problem(word_list):
         result = None
     elif readability.flesch().score < 45: # based on some initial feedback on the results
         result = None
-    return result
+    return result, topic
 
 
 # cookbooks for item gen
-def create_wordlists():
+def create_wordlists(prompt_idx: int, output_file: str):
     js_array = []
     for i in tqdm(range(5)):  # each wordlist call creates 10 lists
         time.sleep(2)  # rate limit
-        result = test_creative_wordlist_generation()
+        result = test_creative_wordlist_generation(prompt_idx)
         js_array.append(result)
 
     df = (
@@ -360,29 +382,66 @@ def create_wordlists():
         .reset_index()
         .drop("index", axis=1)
     )
-    df.to_csv("creative_wordlist_5_words.tsv", sep="\t")
+    df.to_csv(f"{output_file}", sep="\t")
 
-def create_scenarios():
+def create_scenarios(prompt_idx: int, output_file: str):
     wordlists = pd.read_csv("outputs/creative_wordlist_5_words.tsv", sep="\t", index_col=0)
     wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
     wordlists["creative_scenario"] = ""
-    wordlists = wordlists.iloc[0:5] # REMOVE
+    wordlists["topic"] = ""
+    wordlists = wordlists.iloc[0:2] # TODO: REMOVE
     for index, row in wordlists.iterrows():
         time.sleep(2)
-        result = test_creative_problem(row["word_list"])
+        result, topic = test_creative_problem(row["word_list"], prompt_idx)
         if result == None:
             continue
         wordlists.at[index, "creative_scenario"] = result["output"]
+        wordlists.at[index, "model_name"] = model_name
+        wordlists.at[index, "topic"] = topic
+        wordlists.at[index, "max_tokens"] = max_tokens
 
     # drop rows that failed quality control metrics
     wordlists = wordlists[wordlists["creative_scenario"] != ""]
-    wordlists.to_csv("outputs/creative_scenario_test.tsv", sep="\t")
+    wordlists.to_csv(f"outputs/{output_file}", sep="\t")
 
 
 # test prompt X number of times, and save in df
-# TODO: improve the command line parsing
 if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--model_name", type=str)
+    parser.add_argument("--task", type=str)
+    parser.add_argument("--temperature", type=float)
+    parser.add_argument("--top_p", type=float)
+    parser.add_argument("--frequency_penalty", type=float)
+    parser.add_argument("--presence_penalty", type=float)
+    parser.add_argument("--prompt_idx", type=int)
+    parser.add_argument("--max_tokens", type=int)
+    parser.add_argument("--output_file", type=str)
+    parser = parser.parse_args()
+    try:
+        task = parser.task
+
+        model_name = parser.model_name
+        temperature = parser.temperature
+        max_tokens = parser.max_tokens
+        top_p = parser.top_p
+        frequency_penalty = parser.frequency_penalty
+        presence_penalty = parser.presence_penalty
+        llm = ChatOpenAI(
+            model_name=model_name,
+            openai_api_key=key,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            model_kwargs={
+                "top_p": top_p,
+                "frequency_penalty": frequency_penalty,
+                "presence_penalty": presence_penalty,
+            },
+        )
+    except Exception:
+        print("Model failed to initialize. Please check your API key.")
+        exit(-1)
     if task == "scenario generation":
-        create_scenarios()
+        create_scenarios(parser.prompt_idx, parser.output_file)
     elif task == "wordlist generation":
-        create_wordlists()
+        create_wordlists(parser.prompt_idx, parser.output_file)
