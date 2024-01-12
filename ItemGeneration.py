@@ -1,14 +1,32 @@
 import time
 import re
 import pandas as pd
+
+# OpenAI
 from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+
+# HF
+from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain_community.chat_models.huggingface import ChatHuggingFace
+
 from langchain.schema import BaseOutputParser
-from key import key
+from langchain.prompts.chat import ChatPromptTemplate
+from langchain.schema import (
+    HumanMessage,
+    SystemMessage,
+)
+
+# from key import key
 from tqdm import tqdm
 from readability import Readability
 from random import randint
 from argparse import ArgumentParser
+from nltk import word_tokenize
+
+import os
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
+# os.environ["CUDA_VISIBLE_DEVICES"]="0"
+
 
 # API key stored in key.py, and should NOT be committed
 # TODO: add support for more LLMs
@@ -242,7 +260,7 @@ class PromptGenerator:
                     1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
                     2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
                     3. Include as many details about the scenario as you can.
-                    4. Respond in at least 8 sentences and in a single paragraph.
+                    4. Respond in at least 8 but no more than 12 sentences and in a single paragraph.
                     5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
                     6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible. It should be easy for someone with a high school education to read.
                     7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
@@ -305,6 +323,9 @@ class CreativeWordlistItemParser(BaseOutputParser):
 
 class CreativityScenarioItemParser(BaseOutputParser):
     def parse(self, text: str) -> dict:
+        if '###' in text:
+            text = text.split('###')[0]
+            text = text.strip("\n").strip(" ")
         js_output = {
             "model_name": model_name,
             "temperature": temperature,
@@ -337,7 +358,7 @@ def test_creative_wordlist_generation(prompt_idx: int):
     return word_list
 
 
-def test_creative_problem(word_list, prompt_idx: int):
+def test_creative_problem(word_list, prompt_idx: int, model_name: str, llm):
 
     # choose a topic at random to build the scenario
     # these are written manually for now, could try LLM generated in the future
@@ -355,13 +376,16 @@ def test_creative_problem(word_list, prompt_idx: int):
         prompt_idx
     )  # the prompt type
     topic = dilemma_topics[randint(0, len(dilemma_topics)-1)]
+    
     chain = prompt | llm | CreativityScenarioItemParser()
     result = chain.invoke({"word_list": word_list, "topic": topic})
     readability = Readability(result['output'])
 
     # Post-processing rules                #
     # If any fail, return nothing and skip #
-    if 'dilemma' in result['output']:
+    if len(word_tokenize(result['output'])) < 120: # drop scenarios that are too short
+        result = None
+    elif 'dilemma' in result['output']:
         result = None
     elif readability.flesch().score < 45: # based on some initial feedback on the results
         result = None
@@ -384,15 +408,16 @@ def create_wordlists(prompt_idx: int, output_file: str):
     )
     df.to_csv(f"{output_file}", sep="\t")
 
-def create_scenarios(prompt_idx: int, output_file: str):
-    wordlists = pd.read_csv("outputs/creative_wordlist_5_words.tsv", sep="\t", index_col=0)
+def create_scenarios(prompt_idx: int, output_file: str, model_name: str, llm):
+    wordlists = pd.read_csv(f"/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv", sep="\t", index_col=0)
     wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
     wordlists["creative_scenario"] = ""
     wordlists["topic"] = ""
-    wordlists = wordlists.iloc[0:2] # TODO: REMOVE
-    for index, row in wordlists.iterrows():
-        time.sleep(2)
-        result, topic = test_creative_problem(row["word_list"], prompt_idx)
+    wordlists = wordlists.iloc[0:15] # TODO: REMOVE
+    for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
+        if model_name != "gpt-4" and model_name != "gpt-3.5-turbo":
+            time.sleep(2)
+        result, topic = test_creative_problem(row["word_list"], prompt_idx, model_name, llm)
         if result == None:
             continue
         wordlists.at[index, "creative_scenario"] = result["output"]
@@ -402,7 +427,8 @@ def create_scenarios(prompt_idx: int, output_file: str):
 
     # drop rows that failed quality control metrics
     wordlists = wordlists[wordlists["creative_scenario"] != ""]
-    wordlists.to_csv(f"outputs/{output_file}", sep="\t")
+    model_dir = model_name.replace("/","-")
+    wordlists.to_csv(f"Code/creativity-item-generation/outputs/{output_file}_{model_dir}.tsv", sep="\t")
 
 
 # test prompt X number of times, and save in df
@@ -427,21 +453,35 @@ if __name__ == "__main__":
         top_p = parser.top_p
         frequency_penalty = parser.frequency_penalty
         presence_penalty = parser.presence_penalty
-        llm = ChatOpenAI(
-            model_name=model_name,
-            openai_api_key=key,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            model_kwargs={
-                "top_p": top_p,
-                "frequency_penalty": frequency_penalty,
-                "presence_penalty": presence_penalty,
-            },
-        )
+        if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
+            llm = ChatOpenAI(
+                model_name=model_name,
+                openai_api_key=key,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                model_kwargs={
+                    "top_p": top_p,
+                    "frequency_penalty": frequency_penalty,
+                    "presence_penalty": presence_penalty,
+                },
+            )
+        else:
+            llm = HuggingFacePipeline.from_model_id(
+                model_id=parser.model_name,
+                task="text-generation",
+                device=0,  # replace with device_map="auto" to use the accelerate library.
+                pipeline_kwargs={
+                    "max_new_tokens": parser.max_tokens,
+                    "top_p": parser.top_p,
+                    "temperature": parser.temperature,
+                },
+            )
+
+
     except Exception:
         print("Model failed to initialize. Please check your API key.")
         exit(-1)
     if task == "scenario generation":
-        create_scenarios(parser.prompt_idx, parser.output_file)
+        create_scenarios(parser.prompt_idx, parser.output_file, parser.model_name, llm)
     elif task == "wordlist generation":
         create_wordlists(parser.prompt_idx, parser.output_file)
