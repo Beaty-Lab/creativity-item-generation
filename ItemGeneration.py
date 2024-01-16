@@ -1,4 +1,5 @@
 import time
+import torch
 import re
 import pandas as pd
 
@@ -7,7 +8,13 @@ from langchain.chat_models import ChatOpenAI
 
 # HF
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
-from langchain_community.chat_models.huggingface import ChatHuggingFace
+from transformers import (
+    AutoModelForCausalLM,
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+)
+from transformers import pipeline as hf_pipeline
+
 
 from langchain.schema import BaseOutputParser
 from langchain.prompts.chat import ChatPromptTemplate
@@ -23,9 +30,8 @@ from random import randint
 from argparse import ArgumentParser
 from nltk import word_tokenize
 
-import os
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
-# os.environ["CUDA_VISIBLE_DEVICES"]="0"
+
+# torch.cuda.set_device(torch.device("cuda:0"))
 
 
 # API key stored in key.py, and should NOT be committed
@@ -323,9 +329,14 @@ class CreativeWordlistItemParser(BaseOutputParser):
 
 class CreativityScenarioItemParser(BaseOutputParser):
     def parse(self, text: str) -> dict:
+        text = text.strip("\n").strip(" ")
+        text = text.replace("\n","") # TODO: might need regex for this.
         if '###' in text:
             text = text.split('###')[0]
-            text = text.strip("\n").strip(" ")
+        # TODO:
+        # 1. check that all keywords appear in the prompt
+        # 2. remove all text after "X does not know what to do", or drop if regex doesn't match this.
+        # 3. Remove intervening newlines
         js_output = {
             "model_name": model_name,
             "temperature": temperature,
@@ -349,7 +360,7 @@ def test_consequences():
     return result
 
 
-def test_creative_wordlist_generation(prompt_idx: int):
+def test_creative_wordlist_generation(prompt_idx: int, llm):
     prompt = PromptGenerator.make_creative_scenario_wordlist_generation_prompt(
         prompt_idx
     )  # the prompt type
@@ -393,11 +404,11 @@ def test_creative_problem(word_list, prompt_idx: int, model_name: str, llm):
 
 
 # cookbooks for item gen
-def create_wordlists(prompt_idx: int, output_file: str):
+def create_wordlists(prompt_idx: int, output_file: str, llm):
     js_array = []
     for i in tqdm(range(5)):  # each wordlist call creates 10 lists
         time.sleep(2)  # rate limit
-        result = test_creative_wordlist_generation(prompt_idx)
+        result = test_creative_wordlist_generation(prompt_idx, llm)
         js_array.append(result)
 
     df = (
@@ -413,7 +424,7 @@ def create_scenarios(prompt_idx: int, output_file: str, model_name: str, llm):
     wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
     wordlists["creative_scenario"] = ""
     wordlists["topic"] = ""
-    wordlists = wordlists.iloc[0:15] # TODO: REMOVE
+    # wordlists = wordlists.iloc[0:15] # TODO: REMOVE
     for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
         if model_name != "gpt-4" and model_name != "gpt-3.5-turbo":
             time.sleep(2)
@@ -428,7 +439,7 @@ def create_scenarios(prompt_idx: int, output_file: str, model_name: str, llm):
     # drop rows that failed quality control metrics
     wordlists = wordlists[wordlists["creative_scenario"] != ""]
     model_dir = model_name.replace("/","-")
-    wordlists.to_csv(f"Code/creativity-item-generation/outputs/{output_file}_{model_dir}.tsv", sep="\t")
+    wordlists.to_csv(f"/home/aml7990/Code/creativity-item-generation/outputs/{output_file}_{model_dir}.tsv", sep="\t")
 
 
 # test prompt X number of times, and save in df
@@ -446,7 +457,6 @@ if __name__ == "__main__":
     parser = parser.parse_args()
     try:
         task = parser.task
-
         model_name = parser.model_name
         temperature = parser.temperature
         max_tokens = parser.max_tokens
@@ -454,34 +464,43 @@ if __name__ == "__main__":
         frequency_penalty = parser.frequency_penalty
         presence_penalty = parser.presence_penalty
         if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
+            model_kwargs={
+                    "top_p": top_p,
+                    "frequency_penalty": frequency_penalty,
+                    "presence_penalty": presence_penalty,
+            }
             llm = ChatOpenAI(
                 model_name=model_name,
                 openai_api_key=key,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                model_kwargs={
-                    "top_p": top_p,
-                    "frequency_penalty": frequency_penalty,
-                    "presence_penalty": presence_penalty,
-                },
+                model_kwargs=model_kwargs,
             )
         else:
-            llm = HuggingFacePipeline.from_model_id(
-                model_id=parser.model_name,
+            model_kwargs={
+                    "top_p": top_p,
+                    "temperature": temperature,
+                    "device_map": "auto",
+                    "torch_dtype": torch.bfloat16,
+            }
+            tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
+            model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
+            # TODO: make paramters to argparse
+            pipeline = hf_pipeline(
                 task="text-generation",
-                device=0,  # replace with device_map="auto" to use the accelerate library.
-                pipeline_kwargs={
-                    "max_new_tokens": parser.max_tokens,
-                    "top_p": parser.top_p,
-                    "temperature": parser.temperature,
-                },
+                model=model,
+                tokenizer=tokenizer,
+                batch_size=1,
+                max_new_tokens=max_tokens,
+                model_kwargs=model_kwargs,
             )
+            llm = HuggingFacePipeline(pipeline=pipeline)
 
 
     except Exception:
         print("Model failed to initialize. Please check your API key.")
         exit(-1)
-    if task == "scenario generation":
+    if task == "scenario_generation":
         create_scenarios(parser.prompt_idx, parser.output_file, parser.model_name, llm)
     elif task == "wordlist generation":
-        create_wordlists(parser.prompt_idx, parser.output_file)
+        create_wordlists(parser.prompt_idx, parser.output_file, llm)
