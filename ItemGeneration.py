@@ -10,7 +10,6 @@ from langchain.chat_models import ChatOpenAI
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
 from transformers import (
     AutoModelForCausalLM,
-    AutoModelForSeq2SeqLM,
     AutoTokenizer,
 )
 from transformers import pipeline as hf_pipeline
@@ -18,24 +17,15 @@ from transformers import pipeline as hf_pipeline
 
 from langchain.schema import BaseOutputParser
 from langchain.prompts.chat import ChatPromptTemplate
-from langchain.schema import (
-    HumanMessage,
-    SystemMessage,
-)
 
-# from key import key
+# API key stored in key.py, and should NOT be committed
+from key import key
 from tqdm import tqdm
 from readability import Readability
 from random import randint
 from argparse import ArgumentParser
 from nltk import word_tokenize
 
-
-# torch.cuda.set_device(torch.device("cuda:0"))
-
-
-# API key stored in key.py, and should NOT be committed
-# TODO: add support for more LLMs
 
 # class for storing and manipulating prompts
 class PromptGenerator:
@@ -205,8 +195,8 @@ class PromptGenerator:
         Scenario:
         """,
                 ),
-            ],  
-            [ # 6
+            ],
+            [  # 6
                 (
                     "system",
                     """You are an author tasked with producing scenarios for a short story. You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
@@ -232,7 +222,7 @@ class PromptGenerator:
         Scenario:""",
                 ),
             ],
-            [ # 7, 5 word scenario
+            [  # 7, 5 word scenario
                 (
                     "system",
                     """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
@@ -258,7 +248,7 @@ class PromptGenerator:
         Scenario:""",
                 ),
             ],
-            [ # 8, including topic of dilemnia
+            [  # 8, including topic of dilemnia
                 (
                     "system",
                     """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
@@ -286,7 +276,7 @@ class PromptGenerator:
 
         Scenario:""",
                 ),
-            ]
+            ],
         ]
         creative_scenario_generation_prompt = ChatPromptTemplate.from_messages(
             scenario_base_prompts[scendario_prompt_idx]
@@ -294,7 +284,6 @@ class PromptGenerator:
         return creative_scenario_generation_prompt
 
 
-# TODO: more extensive output parsing
 class ConsequencesItemParser(BaseOutputParser):
     def parse(self, text: str) -> dict:
         js_output = {
@@ -309,11 +298,12 @@ class ConsequencesItemParser(BaseOutputParser):
         }
         return js_output
 
+
 class CreativeWordlistItemParser(BaseOutputParser):
     def parse(self, text: str) -> dict:
         text = text.split("\n\n")
-        text = [re.sub(r'([0-9.])+','', t) for t in text]
-        text = [t.strip('\n').strip(" ") for t in text]
+        text = [re.sub(r"([0-9.])+", "", t) for t in text]
+        text = [t.strip("\n").strip(" ") for t in text]
         js_output = {
             "model_name": model_name,
             "temperature": temperature,
@@ -330,13 +320,33 @@ class CreativeWordlistItemParser(BaseOutputParser):
 class CreativityScenarioItemParser(BaseOutputParser):
     def parse(self, text: str) -> dict:
         text = text.strip("\n").strip(" ")
-        text = text.replace("\n","") # TODO: might need regex for this.
-        if '###' in text:
-            text = text.split('###')[0]
+        # Remove intervening newlines
+        text = re.sub("\n", "", text)
+        readability = Readability(text)
+        if len(word_tokenize(text)) < 120:  # drop scenarios that are too short
+            text = None
+        elif "dilemma" in text:
+            text = None
+        elif (
+            readability.flesch().score < 45
+        ):  # based on some initial feedback on the results
+            text = None
+        # remove all text after "X does not know what to do", or drop if regex doesn't match this.
+        if len(re.findall(r'(does not know what to do\.)', text)) != 0:
+            split_on_final_question = re.split(r'(does not know what to do\.)', text)
+            text = split_on_final_question[0] + split_on_final_question[1]
+        else:
+            text = None
+        if "###" in text:
+            text = text.split("###")[0]
+        
+        # Sometimes, the LLM will output a list of possible solutions
+        # if it does that, drop the output
+        if len(re.findall(r'([0-9]{1}\.[a-zA-Z\W]+\?)', text)) != 0:
+            text = None
+
         # TODO:
         # 1. check that all keywords appear in the prompt
-        # 2. remove all text after "X does not know what to do", or drop if regex doesn't match this.
-        # 3. Remove intervening newlines
         js_output = {
             "model_name": model_name,
             "temperature": temperature,
@@ -370,7 +380,6 @@ def test_creative_wordlist_generation(prompt_idx: int, llm):
 
 
 def test_creative_problem(word_list, prompt_idx: int, model_name: str, llm):
-
     # choose a topic at random to build the scenario
     # these are written manually for now, could try LLM generated in the future
     dilemma_topics = [
@@ -381,25 +390,16 @@ def test_creative_problem(word_list, prompt_idx: int, model_name: str, llm):
         "past trauma",
         "friendship versus work",
         "multiple competing demands",
-        "family versus career"
+        "family versus career",
     ]
     prompt = PromptGenerator.make_creative_scenario_generation_prompt(
         prompt_idx
     )  # the prompt type
-    topic = dilemma_topics[randint(0, len(dilemma_topics)-1)]
-    
+    topic = dilemma_topics[randint(0, len(dilemma_topics) - 1)]
+
     chain = prompt | llm | CreativityScenarioItemParser()
     result = chain.invoke({"word_list": word_list, "topic": topic})
-    readability = Readability(result['output'])
 
-    # Post-processing rules                #
-    # If any fail, return nothing and skip #
-    if len(word_tokenize(result['output'])) < 120: # drop scenarios that are too short
-        result = None
-    elif 'dilemma' in result['output']:
-        result = None
-    elif readability.flesch().score < 45: # based on some initial feedback on the results
-        result = None
     return result, topic
 
 
@@ -419,16 +419,23 @@ def create_wordlists(prompt_idx: int, output_file: str, llm):
     )
     df.to_csv(f"{output_file}", sep="\t")
 
+
 def create_scenarios(prompt_idx: int, output_file: str, model_name: str, llm):
-    wordlists = pd.read_csv(f"/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv", sep="\t", index_col=0)
+    wordlists = pd.read_csv(
+        f"/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",
+        sep="\t",
+        index_col=0,
+    )
     wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
     wordlists["creative_scenario"] = ""
     wordlists["topic"] = ""
     # wordlists = wordlists.iloc[0:15] # TODO: REMOVE
     for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
-        if model_name != "gpt-4" and model_name != "gpt-3.5-turbo":
+        if model_name == "gpt-4" and model_name == "gpt-3.5-turbo":
             time.sleep(2)
-        result, topic = test_creative_problem(row["word_list"], prompt_idx, model_name, llm)
+        result, topic = test_creative_problem(
+            row["word_list"], prompt_idx, model_name, llm
+        )
         if result == None:
             continue
         wordlists.at[index, "creative_scenario"] = result["output"]
@@ -438,8 +445,11 @@ def create_scenarios(prompt_idx: int, output_file: str, model_name: str, llm):
 
     # drop rows that failed quality control metrics
     wordlists = wordlists[wordlists["creative_scenario"] != ""]
-    model_dir = model_name.replace("/","-")
-    wordlists.to_csv(f"/home/aml7990/Code/creativity-item-generation/outputs/{output_file}_{model_dir}.tsv", sep="\t")
+    model_dir = model_name.replace("/", "-")
+    wordlists.to_csv(
+        f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.tsv",
+        sep="\t",
+    )
 
 
 # test prompt X number of times, and save in df
@@ -454,6 +464,7 @@ if __name__ == "__main__":
     parser.add_argument("--prompt_idx", type=int)
     parser.add_argument("--max_tokens", type=int)
     parser.add_argument("--output_file", type=str)
+    parser.add_argument("--batch_size", type=int)
     parser = parser.parse_args()
     try:
         task = parser.task
@@ -463,11 +474,12 @@ if __name__ == "__main__":
         top_p = parser.top_p
         frequency_penalty = parser.frequency_penalty
         presence_penalty = parser.presence_penalty
+        batch_size = parser.batch_size
         if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
-            model_kwargs={
-                    "top_p": top_p,
-                    "frequency_penalty": frequency_penalty,
-                    "presence_penalty": presence_penalty,
+            model_kwargs = {
+                "top_p": top_p,
+                "frequency_penalty": frequency_penalty,
+                "presence_penalty": presence_penalty,
             }
             llm = ChatOpenAI(
                 model_name=model_name,
@@ -477,25 +489,23 @@ if __name__ == "__main__":
                 model_kwargs=model_kwargs,
             )
         else:
-            model_kwargs={
-                    "top_p": top_p,
-                    "temperature": temperature,
-                    "device_map": "auto",
-                    "torch_dtype": torch.bfloat16,
+            model_kwargs = {
+                "top_p": top_p,
+                "temperature": temperature,
+                "device_map": "auto",
+                "torch_dtype": torch.bfloat16,
             }
             tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
             model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
-            # TODO: make paramters to argparse
             pipeline = hf_pipeline(
                 task="text-generation",
                 model=model,
                 tokenizer=tokenizer,
-                batch_size=1,
+                batch_size=batch_size,
                 max_new_tokens=max_tokens,
                 model_kwargs=model_kwargs,
             )
             llm = HuggingFacePipeline(pipeline=pipeline)
-
 
     except Exception:
         print("Model failed to initialize. Please check your API key.")
@@ -504,3 +514,6 @@ if __name__ == "__main__":
         create_scenarios(parser.prompt_idx, parser.output_file, parser.model_name, llm)
     elif task == "wordlist generation":
         create_wordlists(parser.prompt_idx, parser.output_file, llm)
+    else:
+        print("Not a valid task name!")
+        exit(-1)
