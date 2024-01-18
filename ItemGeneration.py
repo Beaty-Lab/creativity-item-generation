@@ -1,5 +1,6 @@
 import time
 import torch
+import bitsandbytes
 import re
 import pandas as pd
 
@@ -47,7 +48,6 @@ class PromptGenerator:
         return consequences_prompt
 
     # NOTE: few shots are currently baked into prompt
-    # TODO: make the shots a parameter
     @staticmethod
     def make_creative_scenario_wordlist_generation_prompt(wordlist_prompt_idx: int):
         prompts = [
@@ -379,33 +379,47 @@ class CreativeWordlistItemParser(BaseOutputParser):
 
 class CreativityScenarioItemParser(BaseOutputParser):
     # TODO: for the next round of items after feedback, get rid of everything generated before and after the start of the original item
-    def parse(self, text: str) -> dict:
+    @staticmethod
+    def parse(text: str, scenario_names) -> dict:
         text = text.strip("\n").strip(" ")
         # Remove intervening newlines
         text = re.sub("\n", "", text)
+        text = re.sub("\t", "", text)
         readability = Readability(text)
         if len(word_tokenize(text)) < 120:  # drop scenarios that are too short
-            text = None
+            print("Scenario too short.")
+            text = "None"
         elif "dilemma" in text:
-            text = None
+            print("Scenario contains a forbidden keyword.")
+            text = "None"
         elif (
             readability.flesch().score < 45
         ):  # based on some initial feedback on the results
-            text = None
-        # remove all text after "X does not know what to do", or drop if regex doesn't match this.
-        elif len(re.findall(r'(does not know what to do\.)', text)) != 0:
-            split_on_final_question = re.split(r'(does not know what to do\.)', text)
+            print("Scenario too difficult to read.")
+            text = "None"
+        # remove all text after "X does not know what to do".
+        elif len(re.findall(r"(does not know what to do\.)", text)) != 0:
+            split_on_final_question = re.split(r"(does not know what to do\.)", text)
             text = split_on_final_question[0] + split_on_final_question[1]
         elif "###" in text:
             text = text.split("###")[0]
-        
+
         # Sometimes, the LLM will output a list of possible solutions
         # if it does that, drop the output
-        elif len(re.findall(r'([0-9]{1}\.[a-zA-Z\W]+\?)', text)) != 0:
-            text = None
+        elif len(re.findall(r"([0-9]{1}\.[a-zA-Z\W]+\?)", text)) != 0:
+            print("LLM output possible solutions.")
+            text = "None"
+        
+        # the scenario should start with one of the named characters from the wordlist
+        # check for this and remove all text preceding it
+        if text != "None":
+            text_split_on_word = word_tokenize(text)
+            first_word = text_split_on_word[0]
+            if first_word not in scenario_names:
+                print("Scenario does not begin with character name")
+                text = "None"
+        
 
-        # TODO:
-        # 1. check that all keywords appear in the prompt
         js_output = {
             "model_name": model_name,
             "temperature": temperature,
@@ -438,23 +452,30 @@ def test_creative_wordlist_generation(prompt_idx: int, llm):
     return word_list
 
 
-def test_creative_problem(word_list, prompt_idx: int, llm, previous_llm_output=None, topic_from_file=None, ratings_from_file=False):
+def test_creative_problem(
+    word_list,
+    prompt_idx: int,
+    llm,
+    scenario_names: str,
+    previous_llm_output=None,
+    topic_from_file=None,
+    ratings_from_file=False,
+):
     # when true, will use AI feedback to improve the model outputs
     # llm_evaluator should be either the name of the model to call for evaluation,
     # or the name of a file with saved output for each prompt (for a second round of item gen)
     # both use_eval and llm_evaluator must be set for this path
-    if topic_from_file != None and ratings_from_file != None and previous_llm_output != None:
+    if (
+        topic_from_file != None
+        and ratings_from_file != None
+        and previous_llm_output != None
+    ):
         prompt = PromptGenerator.make_creative_scenario_generation_prompt(
             prompt_idx
         )  # the prompt type
 
         # add previous output to the prompt
-        prompt.append(
-            (
-                "ai",
-                "{ai_output}"
-            )
-        )
+        prompt.append(("ai", "{ai_output}"))
         # add the LLM evaluation to the prompt
         prompt.append(
             (
@@ -463,11 +484,19 @@ def test_creative_problem(word_list, prompt_idx: int, llm, previous_llm_output=N
                 Here is some feedback for your scenario on a scale of 1-3:
                 {ai_feedback}
 
-                Please revise your scenario, and try to score a 3 in each category."""
+                Please revise your scenario, and try to score a 3 in each category.""",
             )
         )
-        chain = prompt | llm | CreativityScenarioItemParser()
-        result = chain.invoke({"word_list": word_list, "topic": topic_from_file, "ai_output": previous_llm_output, "ai_feedback": ratings_from_file})
+        chain = prompt | llm
+        result = chain.invoke(
+            {
+                "word_list": word_list,
+                "topic": topic_from_file,
+                "ai_output": previous_llm_output,
+                "ai_feedback": ratings_from_file,
+            }
+        )
+        result = CreativityScenarioItemParser.parse(result, scenario_names)
         return result
     else:
         # choose a topic at random to build the scenario
@@ -487,8 +516,9 @@ def test_creative_problem(word_list, prompt_idx: int, llm, previous_llm_output=N
         )  # the prompt type
         topic = dilemma_topics[randint(0, len(dilemma_topics) - 1)]
 
-        chain = prompt | llm | CreativityScenarioItemParser()
+        chain = prompt | llm
         result = chain.invoke({"word_list": word_list, "topic": topic})
+        result = CreativityScenarioItemParser.parse(result, scenario_names)
 
         return result, topic
 
@@ -510,71 +540,87 @@ def create_wordlists(prompt_idx: int, output_file: str, llm):
     df.to_csv(f"{output_file}", sep="\t")
 
 
-def create_scenarios(prompt_idx: int, output_file: str, model_name: str, llm, input_file=None, llm_evaluator=None):
-     # when true, will use AI feedback to improve the model outputs
-    if input_file != None and llm_evaluator == None:  
+def create_scenarios(
+    prompt_idx: int,
+    output_file: str,
+    model_name: str,
+    llm,
+    input_file: str = None,
+    llm_evaluator: str = None,
+    wordlist_file: str = None,
+):
+    # when true, will use AI feedback to improve the model outputs
+    if input_file != None and llm_evaluator == None:
         input_file = pd.read_csv(
             input_file,
             sep="\t",
             index_col=0,
         )
-        if "ratings" not in input_file.columns or "creative_scenario" not in input_file.columns:
+        if "ratings" not in input_file.columns or (
+            "creative_scenario" not in input_file.columns
+            and "creative_scenario_without_feedback" not in input_file.columns
+        ):
             print("Input file does not contain both item ratings and item content!")
             exit(-1)
-        
-        input_file.rename({"creative_scenario": "creative_scenario_without_feedback"}, axis=1, inplace=True)
+
+        input_file.rename(
+            {"creative_scenario": "creative_scenario_without_feedback"},
+            axis=1,
+            inplace=True,
+        )
         input_file["creative_scenario_with_feedback"] = ""
         for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
             if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
                 time.sleep(2)
             result = test_creative_problem(
-                row["word_list"], prompt_idx, llm, row["creative_scenario_without_feedback"], row["topic"], row["ratings"]
+                row["word_list"],
+                prompt_idx,
+                llm,
+                row["creative_scenario_without_feedback"],
+                row["topic"],
+                row["ratings"],
             )
-            if result == None:
-                continue
             input_file.at[index, "creative_scenario_with_feedback"] = result["output"]
-        
-        # drop rows that failed quality control metrics
-        input_file = input_file[input_file["creative_scenario_with_feedback"] != ""]
+
+        # drop rows that failed quality controls
+        input_file = input_file[input_file["output"] != "None"]
         model_dir = model_name.replace("/", "-")
         input_file.to_csv(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}_{model_dir}_round_2.tsv",
+            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}_{model_dir}.tsv",
             sep="\t",
         )
 
-            
     elif llm_evaluator != None and input_file == None:
         # path for a fresh round of item generation with evaluation
         pass
     elif llm_evaluator == None and input_file == None:
-        # path for a fresh round of item generation without evalution       
+        # path for a fresh round of item generation without evalution
         wordlists = pd.read_csv(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",
+            f"/home/aml7990/Code/creativity-item-generation/outputs/{wordlist_file}.tsv",
             sep="\t",
             index_col=0,
         )
         wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
         wordlists["creative_scenario"] = ""
         wordlists["topic"] = ""
-        # wordlists = wordlists.iloc[0:15] # TODO: REMOVE
+        # wordlists = wordlists.iloc[0:5] # TODO: REMOVE
         for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
             if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
                 time.sleep(2)
-            result, topic = test_creative_problem(
-                row["word_list"], prompt_idx, llm
-            )
-            if result == None:
-                continue
+            # grab just the names in the wordlist, need for preprocessing
+            scenario_names = row['word_list'].split(",")[::2]
+            scenario_names = [re.sub(r"([0-9]{1}\.)","", s).strip() for s in scenario_names]
+            result, topic = test_creative_problem(row["word_list"], prompt_idx, llm, scenario_names)
             wordlists.at[index, "creative_scenario"] = result["output"]
             wordlists.at[index, "model_name"] = model_name
             wordlists.at[index, "topic"] = topic
             wordlists.at[index, "max_tokens"] = max_tokens
 
         # drop rows that failed quality control metrics
-        wordlists = wordlists[wordlists["creative_scenario"] != ""]
+        input_file = input_file[input_file["output"] != "None"]
         model_dir = model_name.replace("/", "-")
         wordlists.to_csv(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}_iteration_2.tsv",
+            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.tsv",
             sep="\t",
         )
     else:
@@ -596,6 +642,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int)
     parser.add_argument("--input_file", type=str, default=None)
     parser.add_argument("--llm_evaluator", type=str, default=None)
+    parser.add_argument("--wordlist_file", type=str, default=None)
     parser = parser.parse_args()
     try:
         task = parser.task
@@ -608,6 +655,7 @@ if __name__ == "__main__":
         batch_size = parser.batch_size
         input_file = parser.input_file
         llm_evaluator = parser.llm_evaluator
+        wordlist_file = parser.wordlist_file
         if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
             model_kwargs = {
                 "top_p": top_p,
@@ -626,10 +674,10 @@ if __name__ == "__main__":
                 "top_p": top_p,
                 "temperature": temperature,
                 "device_map": "auto",
-                "torch_dtype": torch.bfloat16,
+                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
             }
             tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
-            model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
+            model = AutoModelForCausalLM.from_pretrained(model_name, load_in_8bit=True, **model_kwargs)
             pipeline = hf_pipeline(
                 task="text-generation",
                 model=model,
@@ -644,7 +692,15 @@ if __name__ == "__main__":
         print("Model failed to initialize. Please check your API key.")
         exit(-1)
     if task == "scenario_generation":
-        create_scenarios(parser.prompt_idx, parser.output_file, parser.model_name, llm, input_file, llm_evaluator)
+        create_scenarios(
+            parser.prompt_idx,
+            parser.output_file,
+            parser.model_name,
+            llm,
+            input_file,
+            llm_evaluator,
+            wordlist_file
+        )
     elif task == "wordlist generation":
         create_wordlists(parser.prompt_idx, parser.output_file, llm)
     else:
