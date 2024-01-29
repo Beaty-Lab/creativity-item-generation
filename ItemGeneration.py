@@ -379,8 +379,10 @@ class CreativeWordlistItemParser(BaseOutputParser):
 
 class CreativityScenarioItemParser(BaseOutputParser):
     # TODO: for the next round of items after feedback, get rid of everything generated before and after the start of the original item
+    # TODO: OpenAI returns an AIMessage object, test and confirm if this also happends with hf (we unwrap here by accessing content)
     @staticmethod
     def parse(text: str, scenario_names) -> dict:
+        text = text.content
         text = text.strip("\n").strip(" ")
         # Remove intervening newlines
         text = re.sub("\n", "", text)
@@ -389,9 +391,9 @@ class CreativityScenarioItemParser(BaseOutputParser):
         if len(word_tokenize(text)) < 120:  # drop scenarios that are too short
             print("Scenario too short.")
             text = "None"
-        elif "dilemma" in text:
-            print("Scenario contains a forbidden keyword.")
-            text = "None"
+        # elif "dilemma" in text:
+        #     print("Scenario contains a forbidden keyword.")
+        #     text = "None"
         elif (
             readability.flesch().score < 45
         ):  # based on some initial feedback on the results
@@ -548,6 +550,7 @@ def create_scenarios(
     input_file: str = None,
     llm_evaluator: str = None,
     wordlist_file: str = None,
+    presence_penalty: float = 0.0
 ):
     # when true, will use AI feedback to improve the model outputs
     if input_file != None and llm_evaluator == None:
@@ -615,9 +618,11 @@ def create_scenarios(
             wordlists.at[index, "model_name"] = model_name
             wordlists.at[index, "topic"] = topic
             wordlists.at[index, "max_tokens"] = max_tokens
+            wordlists.at[index, "presence_penalty"] = presence_penalty
 
         # drop rows that failed quality control metrics
-        input_file = input_file[input_file["output"] != "None"]
+        
+        wordlists = wordlists[wordlists["creative_scenario"] != "None"]
         model_dir = model_name.replace("/", "-")
         wordlists.to_csv(
             f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.tsv",
@@ -699,7 +704,8 @@ if __name__ == "__main__":
             llm,
             input_file,
             llm_evaluator,
-            wordlist_file
+            wordlist_file,
+            presence_penalty=presence_penalty,
         )
     elif task == "wordlist generation":
         create_wordlists(parser.prompt_idx, parser.output_file, llm)
