@@ -14,6 +14,8 @@ import time
 import transformers
 from argparse import ArgumentParser
 
+# os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
+
 # Replicate Simones Auto Scorer
 def train_model(metric: str):
   # set the wandb project where this run will be logged
@@ -24,9 +26,8 @@ def train_model(metric: str):
   # for distributed training
   accelerator = Accelerator()
 
-  d = pd.read_csv('/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset2.csv')
+  d = pd.read_csv('/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSfinalMeanScore.csv')
 
-  study_name = 'hp-testsearch-roberta-seed40'
   model_name = "roberta-base"  # a multilingual transformer model
   #prefix = "A creative solution for the situation: " # we'll use prefix/conn to construct inputs to the model
   #suffix = "is: " # we'll use prefix/conn to construct inputs to the model
@@ -60,7 +61,7 @@ def train_model(metric: str):
 
   print(train_val_test_dataset) # show the dataset dictionary
   print(train_val_test_dataset['train'].features)
-  time.sleep(5)
+  time.sleep(10)
 
 
   # SET UP MODEL & TOKENIZER
@@ -69,7 +70,7 @@ def train_model(metric: str):
 
   #  DEFINE WRAPPER TOKENIZER FUNCTION (FOR BATCH TRAINING)
   def tokenize_function(examples):
-    return tokenizer(examples['text'], truncation = True, padding = 'max_length')
+    return tokenizer(examples['text'], truncation = True, padding = True)
 
   tokenized_datasets = train_val_test_dataset.map(tokenize_function, batched = True) # applies wrapper to our dataset
 
@@ -96,8 +97,8 @@ def train_model(metric: str):
       load_best_model_at_end=False,
       save_strategy = 'steps',
       evaluation_strategy = 'steps',
-      eval_steps = 5100,
-      save_steps = 5100,
+      eval_steps = 5500,
+      save_steps = 5500,
       fp16=True,
       save_total_limit = 1)     
 
