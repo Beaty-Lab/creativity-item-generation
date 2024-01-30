@@ -140,7 +140,8 @@ def train_model(metric: str):
 
 
 # use the trained autoscorer to get results on new item responses
-def evaluate_model(trained_model_dir: str, item_responses: pd.DataFrame):
+# make sure the prediction metric is the same as the model used to evaluate
+def evaluate_model(trained_model_dir: str, item_responses: pd.DataFrame, prediction_name: str):
   accelerator = Accelerator()
   np.random.seed(40) # sets a randomization seed for reproducibility
   transformers.set_seed(40)
@@ -191,21 +192,24 @@ def evaluate_model(trained_model_dir: str, item_responses: pd.DataFrame):
   )
 
   prediction = trainer.predict(tokenized_datasets)
-  test_data = {'text':tokenized_datasets['text'],'prediction':np.squeeze(prediction.predictions)}
+  test_data = {'text':tokenized_datasets['text'],f'{prediction_name}':np.squeeze(prediction.predictions)}
   dataset_test_df = pd.DataFrame(test_data)
-  dataset_test_df.to_csv('PredictedAISet.csv')
+  dataset_test_df.to_csv(f'PredictedAISet{prediction_name}.csv')
 
 
 
-
+# TODO: keep ALL the columns in the original df
 if __name__ == "__main__":
   parser = ArgumentParser()
   parser.add_argument("--task", type=str)
   parser.add_argument("--trained_model_dir", type=str)
   parser.add_argument("--item_responses", type=str)
   parser.add_argument("--metric", type=str)
+  parser.add_argument("--prediction", type=str)
   parser = parser.parse_args()
   if parser.task == "train":
     train_model(parser.metric)
   elif parser.task == "evaluate":
-    evaluate_model(parser.trained_model_dir, parser.item_responses)
+    evaluate_model(parser.trained_model_dir, parser.item_responses, parser.prediction)
+  else:
+    print("A task needs to be specified!")
