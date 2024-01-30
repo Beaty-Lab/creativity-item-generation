@@ -109,7 +109,6 @@ class PromptGenerator:
     @staticmethod
     def make_creative_scenario_generation_prompt(scendario_prompt_idx: int):
         # keep track of the different prompts
-        # TODO: move the base prompts to a separate file that is imported, passed to function
         scenario_base_prompts = [
             [
                 ("system", "You are a scenario writer."),
@@ -554,11 +553,16 @@ def create_scenarios(
 ):
     # when true, will use AI feedback to improve the model outputs
     if input_file != None and llm_evaluator == None:
-        input_file = pd.read_csv(
-            input_file,
-            sep="\t",
-            index_col=0,
-        )
+        try:
+            input_file = pd.read_csv(
+                input_file,
+                sep="\t",
+                index_col=0,
+            )
+        except Exception:
+            input_file = pd.read_json(
+                input_file
+            )
         if "ratings" not in input_file.columns or (
             "creative_scenario" not in input_file.columns
             and "creative_scenario_without_feedback" not in input_file.columns
@@ -588,9 +592,8 @@ def create_scenarios(
         # drop rows that failed quality controls
         input_file = input_file[input_file["output"] != "None"]
         model_dir = model_name.replace("/", "-")
-        input_file.to_csv(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}_{model_dir}.tsv",
-            sep="\t",
+        input_file.to_json(
+            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}_{model_dir}.json",
         )
 
     elif llm_evaluator != None and input_file == None:
@@ -598,15 +601,19 @@ def create_scenarios(
         pass
     elif llm_evaluator == None and input_file == None:
         # path for a fresh round of item generation without evalution
-        wordlists = pd.read_csv(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/{wordlist_file}.tsv",
-            sep="\t",
-            index_col=0,
-        )
+        try:
+            wordlists = pd.read_csv(
+                f"/home/aml7990/Code/creativity-item-generation/outputs/{wordlist_file}.tsv",
+                sep="\t",
+                index_col=0,
+            )
+        except Exception:
+            wordlists = pd.read_json(
+                f"/home/aml7990/Code/creativity-item-generation/outputs/{wordlist_file}.tsv",
+            )
         wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
         wordlists["creative_scenario"] = ""
         wordlists["topic"] = ""
-        # wordlists = wordlists.iloc[0:5] # TODO: REMOVE
         for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
             if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
                 time.sleep(2)
@@ -624,9 +631,8 @@ def create_scenarios(
         
         wordlists = wordlists[wordlists["creative_scenario"] != "None"]
         model_dir = model_name.replace("/", "-")
-        wordlists.to_csv(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.tsv",
-            sep="\t",
+        wordlists.to_json(
+            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.json",
         )
     else:
         print("Unsupported combination of arguments!")
