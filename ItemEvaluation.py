@@ -17,13 +17,16 @@ from random import randint
 from argparse import ArgumentParser
 from nltk import word_tokenize
 
+
 # class for storing and manipulating prompts
 class PromptGenerator:
     @staticmethod
     def make_creative_scenario_evaluation_prompt(evaluation_prompt_idx: int):
         scenario_base_prompts = [
             [
-                ("system", """You are an author charged with evaluating scenarios for short stories. Given a scenario, you will evaluate the quality of the scenario in terms of how well it obeys these criteria:
+                (
+                    "system",
+                    """You are an author charged with evaluating scenarios for short stories. Given a scenario, you will evaluate the quality of the scenario in terms of how well it obeys these criteria:
 
                     1. Scenarios should present complex situations with more than just two competing demands or considerations. Avoid framing as clear-cut dilemmas.
                     2. Include details that allow for more unique and creative responses beyond the obvious. For example, additional characters or constraints that test-takers can draw from.
@@ -68,7 +71,8 @@ class PromptGenerator:
                     2 = Neutral
                     3 = Purely task/goal-focused
 
-                    Provide your response in JSON."""),
+                    Provide your response in JSON.""",
+                ),
                 (
                     "human",  # 1
                     """Scenario:
@@ -77,13 +81,14 @@ class PromptGenerator:
                     ###
 
                     Ratings:""",
-                            ),
+                ),
             ],
         ]
         creative_scenario_generation_prompt = ChatPromptTemplate.from_messages(
             scenario_base_prompts[evaluation_prompt_idx]
         )
         return creative_scenario_generation_prompt
+
 
 class CreativityScenarioItemEvaluationParser(BaseOutputParser):
     # the output should be formatted as json
@@ -96,6 +101,7 @@ class CreativityScenarioItemEvaluationParser(BaseOutputParser):
 
         return text
 
+
 def test_creative_problem_eval(prompt_idx: int, scenario: str, llm):
     prompt = PromptGenerator.make_creative_scenario_evaluation_prompt(
         prompt_idx
@@ -106,36 +112,73 @@ def test_creative_problem_eval(prompt_idx: int, scenario: str, llm):
 
     return result
 
-def evaluate_scenarios(prompt_idx: int, output_file: str, model_dir: str, model_name: str, llm):
-    scenarios = pd.read_csv(
-        f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.tsv",
-        sep="\t",
-        # index_col=0,
-    )
-    scenarios["ratings_round_2"] = ""
-    scenarios["Evaluator"] = model_name
-    for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
-        time.sleep(2)
-        evaluation = test_creative_problem_eval(
-            prompt_idx, row["creative_scenario_with_feedback"], llm # TODO: the row col should be an arg
-        )
-        if evaluation == None:
-            continue
-        scenarios.at[index, "ratings_round_2"] = evaluation
 
-    # drop rows that failed quality control metrics
-    # scenarios = scenarios[scenarios["ratings_round_2"] != ""] # TODO: uncomment
-    # TODO: this output file should match the one without eval scores exactly
-    scenarios.to_csv(
-        f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}_{model_dir}.tsv",
-        sep="\t",
-    )
+def evaluate_scenarios(
+    prompt_idx: int, output_file: str, model_name: str, llm, round: int, scenario_col: str
+):
+    if round == 1:
+        try:
+            scenarios = pd.read_csv(
+                f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}.tsv",
+                sep="\t",
+                index_col=0,
+            )
+        except Exception:
+            scenarios = pd.read_json(
+                f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}.json",
+            )
+        scenarios["ratings_round_1"] = ""
+        scenarios["Evaluator"] = model_name
+        for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
+            time.sleep(2)
+            evaluation = test_creative_problem_eval(
+                prompt_idx,
+                row[scenario_col], # "creative_scenario_without_feedback"
+                llm,
+            )
+            if evaluation == None:
+                continue
+            scenarios.at[index, "ratings_round_1"] = evaluation
+
+        # drop rows that failed quality control metrics
+        scenarios = scenarios[scenarios["ratings_round_2"] != ""]
+        scenarios.to_json(
+            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.json",
+        )
+    elif round == 2:
+        try:
+            scenarios = pd.read_csv(
+                f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.tsv",
+                sep="\t",
+                # index_col=0,
+            )
+        except Exception:
+            scenarios = pd.read_json(
+                f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.json",
+            )
+        scenarios["ratings_round_2"] = ""
+        scenarios["Evaluator"] = model_name
+        for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
+            time.sleep(2)
+            evaluation = test_creative_problem_eval(
+                prompt_idx,
+                row[scenario_col], # "creative_scenario_with_feedback"
+                llm,
+            )
+            if evaluation == None:
+                continue
+            scenarios.at[index, "ratings_round_2"] = evaluation
+
+        # drop rows that failed quality control metrics
+        scenarios = scenarios[scenarios["ratings_round_2"] != ""]
+        scenarios.to_json(
+            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.tsv",
+        )
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--model_name", type=str) # the LLM used to evaluate items
-    parser.add_argument("--model_dir", type=str) # the LLM whose items are being evaluated
+    parser.add_argument("--model_name", type=str)  # the LLM used to evaluate items
     parser.add_argument("--task", type=str)
     parser.add_argument("--temperature", type=float)
     parser.add_argument("--top_p", type=float)
@@ -143,7 +186,8 @@ if __name__ == "__main__":
     parser.add_argument("--presence_penalty", type=float)
     parser.add_argument("--prompt_idx", type=int)
     parser.add_argument("--max_tokens", type=int)
-    parser.add_argument("--output_file", type=str) # the prefix to the output file name
+    parser.add_argument("--output_file", type=str)  # the prefix to the output file name
+    parser.add_argument("--round", type=int)
     parser = parser.parse_args()
     try:
         task = parser.task
@@ -166,32 +210,21 @@ if __name__ == "__main__":
                 max_tokens=max_tokens,
                 model_kwargs=model_kwargs,
             )
-        # TODO: Huggingface evaluators not currently supported
-        # else:
-        #     model_kwargs = {
-        #         "top_p": top_p,
-        #         "temperature": temperature,
-        #         "device_map": "auto",
-        #         "torch_dtype": torch.bfloat16,
-        #     }
-        #     tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
-        #     model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
-        #     # TODO: make paramters to argparse
-        #     pipeline = hf_pipeline(
-        #         task="text-generation",
-        #         model=model,
-        #         tokenizer=tokenizer,
-        #         batch_size=1,
-        #         max_new_tokens=max_tokens,
-        #         model_kwargs=model_kwargs,
-        #     )
-        #     llm = HuggingFacePipeline(pipeline=pipeline)
+
+        else:
+            print("Only OpenAI models are supporting for evaluating items.")
 
     except Exception:
         print("Model failed to initialize. Please check your API key.")
         exit(-1)
     if task == "evaluate_CPS":
-        evaluate_scenarios(parser.prompt_idx, parser.output_file, parser.model_dir, parser.model_name, llm)
+        evaluate_scenarios(
+            parser.prompt_idx,
+            parser.output_file,
+            parser.model_name,
+            llm,
+            parser.round,
+        )
     elif task == "evaluate_consequences":
         print("Consequences eval not implemented!")
         exit(-1)
