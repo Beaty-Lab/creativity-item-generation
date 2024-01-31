@@ -30,46 +30,52 @@ class PromptGenerator:
 
                     1. Scenarios should present complex situations with more than just two competing demands or considerations. Avoid framing as clear-cut dilemmas.
                     2. Include details that allow for more unique and creative responses beyond the obvious. For example, additional characters or constraints that test-takers can draw from.
-                    3. Balance relationship problems with task/goal-oriented problems. Relationships issues alone limit solutions.
+                    3. Balance relationship problems with task/goal-oriented problems. Scenarios that focus purely on relationship issues alone limit solutions. It is permissible to include relationship focused constraints, if they are balanced with more objective or goal-oriented ones.
                     4. Ensure consistent reading level across scenarios. Avoid unnecessarily complex vocabulary.
                     5. Orient scenarios towards adults. Avoid student/school settings.
-                    6. Provide enough background details so the current dilemma is understandable. Scenarios should give test-takers enough to work with.
+                    6. Provide enough background details so the current dilemma is understandable. Scenarios should give test-takers enough to work with to develop multiple possible solutions.
                     7. Competing goals should be more complex than just preferences or feelings. Include tangible stakes, goals, or external pressures.
-                    8. Do not focus solely on emotions like jealousy or relationships. These limit viable solutions.
-                    9. Avoid scenarios requiring niche knowledge that may not be equally familiar to all test-takers.
-                    10. The best scenarios allow room for a wide range of creative responses beyond the obvious, with interpersonal issues as well as task/goal-related pressures.
+                    8. Do not focus solely on emotions like jealousy or relationships. These limit viable solutions. It is permissible to include emotionally focused constraints, if they are balanced with more objective or goal-oriented ones.
+                    9. Avoid scenarios requiring niche knowledge or experience that may not be equally familiar to all test takers. Scenarios should be universally understandable, and deal with situations and challenges that the large majority of people are likely familiar with. Universal experiences include going to school, being in a relationship, spending time with friends, etc. More niche scenarios could, for example, deal with a hobby only a small fraction of people would participate in, or a life experience present in only a minority of the population. Please err on the side of caution here; if a scenario seems like it would not be relatable to the overwhelming majority participants, it's better to give a lower rating even if you aren't absolutely sure.
+                    10. Do NOT include controversial or emotionally charged topics in the scenarios; these may sway participate responses and result in social desirability biases. Examples of controversial topics include abortion and marijuana use; these and similar topics should NOT be included in scenarios.
+                    11. The best scenarios allow room for a wide range of creative responses beyond the obvious, with interpersonal issues as well as task/goal-related pressures.
 
                     Produce a numerical rating on a scale of 1-3 evaluating the quality of the scenario along multiple dimensions:
 
                     Complexity
-                    1 = Fewer than two competing demands
-                    2 = Exactly two competing demands
-                    3 = More than two competing demands
+                    1 = No competing demands
+                    2 = Some competing demands
+                    3 = Many competing demands
 
                     Open-endedness
-                    1 = Few unique responses possible
-                    2 = Some opportunity for creativity
-                    3 = Allows many creative responses
+                    1 = Only one possible solution
+                    2 = Some possible solutions
+                    3 = Many possible solutions
 
                     Constraints
-                    1 = No real constraints or goals
-                    2 = Some external pressures
-                    3 = Multiple complex constraints
+                    1 = No constraints or goals
+                    2 = Some constraints or goals
+                    3 = Many constraints or goals
 
                     Relationships
-                    1 = Purely interpersonal
-                    2 = Mix of relationships and tasks
-                    3 = Mostly task/goal-oriented
+                    1 = No relationship focused constraints
+                    2 = Some relationship focused constraints
+                    3 = Many relationship focused constraints
 
                     Accessibility
-                    1 = Requires niche knowledge
-                    2 = Mostly relatable
-                    3 = Universally understandable
+                    1 = Significant specialized experience needed
+                    2 = Some specialized experience needed
+                    3 = No specialized experience needed
 
                     Emotional Focus
-                    1 = Feelings or relationship focused
-                    2 = Neutral
-                    3 = Purely task/goal-focused
+                    1 = No emotionally focused constraints
+                    2 = Some emotionally focused constraints
+                    3 = Many emotionally focused constraints
+
+                    Controversial
+                    1 = Many constraints involving controversial topics
+                    2 = Some constraints involving controversial topics
+                    3 = No constraints involving controversial topics
 
                     Provide your response in JSON.""",
                 ),
@@ -141,7 +147,7 @@ def evaluate_scenarios(
             scenarios.at[index, "ratings_round_1"] = evaluation
 
         # drop rows that failed quality control metrics
-        scenarios = scenarios[scenarios["ratings_round_2"] != ""]
+        scenarios = scenarios[scenarios["ratings_round_1"] != ""]
         scenarios.to_json(
             f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.json",
         )
@@ -180,7 +186,6 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--model_name", type=str)  # the LLM used to evaluate items
     parser.add_argument("--task", type=str)
-    parser.add_argument("--temperature", type=float)
     parser.add_argument("--top_p", type=float)
     parser.add_argument("--frequency_penalty", type=float)
     parser.add_argument("--presence_penalty", type=float)
@@ -188,11 +193,12 @@ if __name__ == "__main__":
     parser.add_argument("--max_tokens", type=int)
     parser.add_argument("--output_file", type=str)  # the prefix to the output file name
     parser.add_argument("--round", type=int)
+    parser.add_argument("--scenario_col", type=str)
     parser = parser.parse_args()
     try:
         task = parser.task
         model_name = parser.model_name
-        temperature = parser.temperature
+        temperature = 0 # output should be as close to deterministic as possible
         max_tokens = parser.max_tokens
         top_p = parser.top_p
         frequency_penalty = parser.frequency_penalty
@@ -224,6 +230,7 @@ if __name__ == "__main__":
             parser.model_name,
             llm,
             parser.round,
+            parser.scenario_col,
         )
     elif task == "evaluate_consequences":
         print("Consequences eval not implemented!")
