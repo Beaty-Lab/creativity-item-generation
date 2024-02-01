@@ -9,6 +9,7 @@ import pandas as pd
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import BaseOutputParser
 from langchain.prompts.chat import ChatPromptTemplate
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 # API key stored in key.py, and should NOT be committed
 from key import key
@@ -18,15 +19,21 @@ from argparse import ArgumentParser
 from nltk import word_tokenize
 
 
-# class for storing and manipulating prompts
-class PromptGenerator:
+class CreativityScenarioItemEvaluationParser(BaseOutputParser):
+    # the output should be formatted as json
     @staticmethod
-    def make_creative_scenario_evaluation_prompt(evaluation_prompt_idx: int):
-        scenario_base_prompts = [
-            [
-                (
-                    "system",
-                    """You are an author charged with evaluating scenarios for short stories. Given a scenario, you will evaluate the quality of the scenario in terms of how well it obeys these criteria:
+    def parse(text: str) -> dict:
+        try:
+            js.loads(text)
+        except Exception:
+            print("Json output failed to load, trying next item...")
+            return None
+
+        return text
+
+
+def test_creative_problem_eval(prompt_idx: int, scenario: str, llm):
+    system_context = """You are a scientist designing an experiment testing for problem solving ability.  Participants will be given scenarios which they must come up with possible solutions for, and it is crucial that these scenarios obey the criteria set out by the study design. Given a scenario written for you by a team member, you will evaluate the quality of the scenario in terms of how well it obeys these criteria:
 
                     1. Scenarios should present complex situations with more than just two competing demands or considerations. Avoid framing as clear-cut dilemmas.
                     2. Include details that allow for more unique and creative responses beyond the obvious. For example, additional characters or constraints that test-takers can draw from.
@@ -77,50 +84,110 @@ class PromptGenerator:
                     2 = Some constraints involving controversial topics
                     3 = No constraints involving controversial topics
 
-                    Provide your response in JSON.""",
-                ),
-                (
-                    "human",  # 1
-                    """Scenario:
+                    Provide your response in JSON."""
+
+    output = llm.predict_messages(
+        [
+            SystemMessage(content=system_context),
+            HumanMessage(
+                content="""Scenario:
+                    Noah is a college student who has been working at a gardening store for a year. His boss, James, has been pushing him to take on more responsibilities and become a manager, but Noah is hesitant. He values his friendship with Lily, who works at the store too, but she is not interested in becoming a manager. Noah is torn between his loyalty to James, who has been a mentor to him, and his friendship with Lily, who he knows will be negatively affected if he takes the promotion. Moreover, Noah is not sure if he wants the added stress and responsibility of being a manager, and he worries that taking the promotion would impact his schoolwork. He also knows that James is under pressure from the store's owner to increase profits, and Noah does not want to let him down. Noah does not know what to do.
+
+                    ###
+
+                    Ratings:"""
+            ),
+            AIMessage(
+                content="""{
+                        "Complexity": 3,
+                        "Open-endedness": 3,
+                        "Constraints": 3,
+                        "Relationships": 2,
+                        "Accessibility" 3,
+                        "Emotional Focus": 2,
+                        "Controversial": 3
+                    }"""
+            ),
+            HumanMessage(
+                content="""Scenario:
+                    Alex is in the office, typing away at her computer when Lisa walks in and sits down across from her. Lisa looks worried, and Alex can tell that something is bothering her. Lisa starts to explain that she has been struggling with a project and is worried that she won't be able to meet the deadline. Alex listens intently, trying to offer support and suggestions where she can. However, as Lisa continues to talk, Alex starts to feel a sense of dread creeping in. She knows that if Lisa doesn't finish the project on time, it will reflect poorly on their boss, Ethan, who is also Alex's boyfriend. Alex doesn't know what to do - should she help Lisa and risk appearing to take sides, or should she avoid getting involved and risk damaging her relationship with Ethan? 
+
+                    ###
+
+                    Ratings:"""
+            ),
+            AIMessage(
+                content="""{
+                    "Complexity": 2,
+                    "Open-endedness": 3,
+                    "Constraints" 1,
+                    "Relationships": 2,
+                    "Accessibility": 3,
+                    "Emotional Focus": 2,
+                    "Controversial": 3
+                    }"""
+            ),
+            HumanMessage(
+                content="""Scenario:
+                    Ava is a senior in college who has always been very close to her family. She has recently landed a job at a prestigious finance firm, which would require her to relocate to a different city. Her younger brother, William, who is still in high school, has been struggling with his studies and has confided in Ava about his desire to drop out of school. Ava is torn between her career ambitions and her family responsibilities. She knows that if she takes the job, she will not be able to support her brother the way she wants to. On the other hand, if she passes up the job, she risks jeopardizing her own future. Ava is unsure of what to do and feels overwhelmed by the weight of her decision.
+
+                    ###
+
+                    Ratings:"""
+            ),
+            AIMessage(
+                content="""{
+                    "Complexity": 2,
+                    "Open-endedness": 3,
+                    "Constraints": 2,
+                    "Relationships": 2,
+                    "Accessibility": 3,
+                    "Emotional Focus": 2,
+                    "Controversial": 3
+                    }"""
+            ),
+            HumanMessage(
+                content="""Scenario:
+                    Amelia has been secretly crushing on Benjamin for months. One day, while browsing at the bookstore, she discovers a book that she knows he has been wanting. She is torn between buying it for him and keeping her crush a secret, or leaving it behind and risking the possibility of never having the opportunity to reveal her true feelings. As she stands there, she notices Lily, her best friend, walking towards her. Lily is also Benjamin's ex-girlfriend, and Amelia knows that if she buys the book, Lily will likely find out about her crush. Amelia is unsure of what to do, as she values her friendship with Lily but also really wants to take the opportunity to express her feelings to Benjamin.
+
+                    ###
+
+                    Ratings:"""
+            ),
+            AIMessage(
+                content="""{
+                    "Complexity": 2,
+                    "Open-endedness": 3,
+                    "Constraints": 2,
+                    "Relationships": 3,
+                    "Accessibility": 3,
+                    "Emotional Focus": 3,
+                    "Controversial": 2
+                    }"""
+            ),
+            HumanMessage(
+                content=f"""Scenario:
                     {scenario}
 
                     ###
 
-                    Ratings:""",
-                ),
-            ],
+                    Ratings:"""
+            ),
         ]
-        creative_scenario_generation_prompt = ChatPromptTemplate.from_messages(
-            scenario_base_prompts[evaluation_prompt_idx]
-        )
-        return creative_scenario_generation_prompt
+    )
 
+    output = CreativityScenarioItemEvaluationParser().parse(output.content)
 
-class CreativityScenarioItemEvaluationParser(BaseOutputParser):
-    # the output should be formatted as json
-    def parse(self, text: str) -> dict:
-        try:
-            js.loads(text)
-        except Exception:
-            print("Json output failed to load, trying next item...")
-            return None
-
-        return text
-
-
-def test_creative_problem_eval(prompt_idx: int, scenario: str, llm):
-    prompt = PromptGenerator.make_creative_scenario_evaluation_prompt(
-        prompt_idx
-    )  # the prompt type
-
-    chain = prompt | llm | CreativityScenarioItemEvaluationParser()
-    result = chain.invoke({"scenario": scenario})
-
-    return result
+    return output
 
 
 def evaluate_scenarios(
-    prompt_idx: int, output_file: str, model_name: str, llm, round: int, scenario_col: str
+    prompt_idx: int,
+    output_file: str,
+    model_name: str,
+    llm,
+    round: int,
+    scenario_col: str,
 ):
     if round == 1:
         try:
@@ -139,7 +206,7 @@ def evaluate_scenarios(
             time.sleep(2)
             evaluation = test_creative_problem_eval(
                 prompt_idx,
-                row[scenario_col], # "creative_scenario_without_feedback"
+                row[scenario_col],  # "creative_scenario_without_feedback"
                 llm,
             )
             if evaluation == None:
@@ -168,7 +235,7 @@ def evaluate_scenarios(
             time.sleep(2)
             evaluation = test_creative_problem_eval(
                 prompt_idx,
-                row[scenario_col], # "creative_scenario_with_feedback"
+                row[scenario_col],  # "creative_scenario_with_feedback"
                 llm,
             )
             if evaluation == None:
@@ -198,7 +265,7 @@ if __name__ == "__main__":
     try:
         task = parser.task
         model_name = parser.model_name
-        temperature = 0 # output should be as close to deterministic as possible
+        temperature = 0  # output should be as close to deterministic as possible
         max_tokens = parser.max_tokens
         top_p = parser.top_p
         frequency_penalty = parser.frequency_penalty
