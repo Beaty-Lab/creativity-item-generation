@@ -214,11 +214,11 @@ class PromptGenerator:
                 (
                     "human",
                     """Word list:
-        {word_list}
+                    {word_list}
 
-        ###
+                    ###
 
-        Scenario:""",
+                    Scenario:""",
                 ),
             ],
             [  # 7, 5 word scenario
@@ -266,62 +266,69 @@ class PromptGenerator:
                 (
                     "human",
                     """Word list:
-        {word_list}
+                    {word_list}
 
-        Dilemma topic:
-        {topic}
+                    Dilemma topic:
+                    {topic}
 
-        ###
+                    ###
 
-        Scenario:""",
-                ),
+                    Scenario:""",
+                            ),
             ],
             [  # 9, including the evaluation scale (for LLM feedback)
                 (
                     "system",
-                    """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
+                    """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. You will be given what the topic of this dilemma should involve. For example, if the dilemma topic is "secret crush", make sure that the scenario involves a romantic relationship. Here is a list of rules you should follow when writing the scenario:
 
-                    1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
-                    2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
-                    3. Include as many details about the scenario as you can.
-                    4. Respond in at least 8 but no more than 12 sentences and in a single paragraph.
-                    5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
-                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible. It should be easy for someone with a high school education to read.
-                    7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
-                    8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
-                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others. Remember: do not suggest any possible solution in the scenario.
-                    10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.
+                    1. Scenarios should present complex situations with more than just two competing demands or considerations. Avoid framing as clear-cut dilemmas.
+                    2. Include details that allow for more unique and creative responses beyond the obvious. For example, additional characters or constraints that test-takers can draw from.
+                    3. Balance relationship problems with task/goal-oriented problems. Scenarios that focus purely on relationship issues alone limit solutions. It is permissible to include relationship focused constraints, if they are balanced with more objective or goal-oriented ones.
+                    4. Ensure consistent reading level across scenarios. Avoid unnecessarily complex vocabulary.
+                    5. Orient scenarios towards adults. Avoid student/school settings.
+                    6. Provide enough background details so the current dilemma is understandable. Scenarios should give test-takers enough to work with to develop multiple possible solutions.
+                    7. Competing goals should be more complex than just preferences or feelings. Include tangible stakes, goals, or external pressures.
+                    8. Do not focus solely on emotions like jealousy or relationships. These limit viable solutions. It is permissible to include emotionally focused constraints, if they are balanced with more objective or goal-oriented ones.
+                    9. Avoid scenarios requiring niche knowledge or experience that may not be equally familiar to all test takers. Scenarios should be universally understandable, and deal with situations and challenges that the large majority of people are likely familiar with. Universal experiences include going to school, being in a relationship, spending time with friends, etc. More niche scenarios could, for example, deal with a hobby only a small fraction of people would participate in, or a life experience present in only a minority of the population. Please err on the side of caution here; if a scenario seems like it would not be relatable to the overwhelming majority participants, it's better to give a lower rating even if you aren't absolutely sure.
+                    10. Do NOT include controversial or emotionally charged topics in the scenarios; these may sway participate responses and result in social desirability biases. Examples of controversial topics include abortion and marijuana use; these and similar topics should NOT be included in scenarios.
+                    11. The best scenarios allow room for a wide range of creative responses beyond the obvious, with interpersonal issues as well as task/goal-related pressures.
+
                     
                     Each scenario you create will be rated according to this rubric:
                     Complexity
-                    1 = Only two competing demands
-                    2 = Some complexity but still a dilemma
-                    3 = Multiple competing considerations
+                    1 = No competing demands
+                    2 = Some competing demands
+                    3 = Many competing demands
 
                     Open-endedness
-                    1 = Few unique responses possible
-                    2 = Some opportunity for creativity
-                    3 = Allows many creative responses
+                    1 = Only one possible solution
+                    2 = Some possible solutions
+                    3 = Many possible solutions
 
                     Constraints
-                    1 = No real constraints or goals
-                    2 = Some external pressures
-                    3 = Multiple complex constraints
+                    1 = No constraints or goals
+                    2 = Some constraints or goals
+                    3 = Many constraints or goals
 
                     Relationships
-                    1 = Purely interpersonal
-                    2 = Mix of relationships and tasks
-                    3 = Mostly task/goal-oriented
+                    1 = No relationship focused constraints
+                    2 = Some relationship focused constraints
+                    3 = Many relationship focused constraints
 
                     Accessibility
-                    1 = Requires niche knowledge
-                    2 = Mostly relatable
-                    3 = Universally understandable
+                    1 = Significant specialized experience needed
+                    2 = Some specialized experience needed
+                    3 = No specialized experience needed
 
                     Emotional Focus
-                    1 = Feelings or relationship focused
-                    2 = Neutral
-                    3 = Purely task/goal-focused""",
+                    1 = No emotionally focused constraints
+                    2 = Some emotionally focused constraints
+                    3 = Many emotionally focused constraints
+
+                    Controversial
+                    1 = Many constraints involving controversial topics
+                    2 = Some constraints involving controversial topics
+                    3 = No constraints involving controversial topics""",
                 ),
                 (
                     "human",
@@ -378,10 +385,13 @@ class CreativeWordlistItemParser(BaseOutputParser):
 
 class CreativityScenarioItemParser(BaseOutputParser):
     # TODO: for the next round of items after feedback, get rid of everything generated before and after the start of the original item
-    # TODO: OpenAI returns an AIMessage object, test and confirm if this also happends with hf (we unwrap here by accessing content)
     @staticmethod
     def parse(text: str, scenario_names) -> dict:
-        text = text.content
+        try:
+            text = text.content
+            assert type(text) == str
+        except Exception:
+            pass
         text = text.strip("\n").strip(" ")
         # Remove intervening newlines
         text = re.sub("\n", "", text)
@@ -598,6 +608,7 @@ def create_scenarios(
 
     elif llm_evaluator != None and input_file == None:
         # path for a fresh round of item generation with evaluation
+        print("Using an evaluator without an input file isn't implemented!")
         pass
     elif llm_evaluator == None and input_file == None:
         # path for a fresh round of item generation without evalution
@@ -614,25 +625,47 @@ def create_scenarios(
         wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
         wordlists["creative_scenario"] = ""
         wordlists["topic"] = ""
+        wordlists_with_s = pd.DataFrame(columns=wordlists.columns)
         for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
-            if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
-                time.sleep(2)
-            # grab just the names in the wordlist, need for preprocessing
-            scenario_names = row['word_list'].split(",")[::2]
-            scenario_names = [re.sub(r"([0-9]{1}\.)","", s).strip() for s in scenario_names]
-            result, topic = test_creative_problem(row["word_list"], prompt_idx, llm, scenario_names)
-            wordlists.at[index, "creative_scenario"] = result["output"]
-            wordlists.at[index, "model_name"] = model_name
-            wordlists.at[index, "topic"] = topic
-            wordlists.at[index, "max_tokens"] = max_tokens
-            wordlists.at[index, "presence_penalty"] = presence_penalty
+            # generate 3 scenarios for each wordlist + topic
+            # TODO: make an arg
+            for scenario in range(3):
+                if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
+                    time.sleep(2)
+                # grab just the names in the wordlist, need for preprocessing
+                scenario_names = row['word_list'].split(",")[::2]
+                scenario_names = [re.sub(r"([0-9]{1}\.)","", s).strip() for s in scenario_names]
+                result, topic = test_creative_problem(row["word_list"], prompt_idx, llm, scenario_names)
+                new_scenario = pd.DataFrame(columns=wordlists_with_s.columns)
+                new_scenario = pd.DataFrame(
+                    {
+                        "creative_scenario": result["output"],
+                        "model_name": model_name,
+                        "topic": topic,
+                        "max_tokens": max_tokens,
+                        "presence_penalty": presence_penalty,
+                        "frequency_penalty": row['frequency_penalty'],
+                        "temperature": row["temperature"],
+                        "item_type": row["item_type"],
+                        "top_p": row["top_p"],
+                        "word_list": row["word_list"]
+                    },
+                    index=[0]
+                )
+                wordlists_with_s = pd.concat((wordlists_with_s,new_scenario))
+                # wordlists.at[index, "creative_scenario"] = result["output"]
+                # wordlists.at[index, "model_name"] = model_name
+                # wordlists.at[index, "topic"] = topic
+                # wordlists.at[index, "max_tokens"] = max_tokens
+                # wordlists.at[index, "presence_penalty"] = presence_penalty
 
         # drop rows that failed quality control metrics
-        
-        wordlists = wordlists[wordlists["creative_scenario"] != "None"]
+        wordlists_with_s.reset_index(drop=True,inplace=True)
+        wordlists_with_s = wordlists_with_s[wordlists_with_s["creative_scenario"] != "None"]
         model_dir = model_name.replace("/", "-")
-        wordlists.to_json(
+        wordlists_with_s.to_json(
             f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.json",
+            orient="records"
         )
     else:
         print("Unsupported combination of arguments!")
