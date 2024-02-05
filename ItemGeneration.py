@@ -473,9 +473,6 @@ def test_creative_problem(
     ratings_from_file=False,
 ):
     # when true, will use AI feedback to improve the model outputs
-    # llm_evaluator should be either the name of the model to call for evaluation,
-    # or the name of a file with saved output for each prompt (for a second round of item gen)
-    # both use_eval and llm_evaluator must be set for this path
     if (
         topic_from_file != None
         and ratings_from_file != None
@@ -556,13 +553,13 @@ def create_scenarios(
     output_file: str,
     model_name: str,
     llm,
+    round,
     input_file: str = None,
-    llm_evaluator: str = None,
     wordlist_file: str = None,
     presence_penalty: float = 0.0
 ):
-    # when true, will use AI feedback to improve the model outputs
-    if input_file != None and llm_evaluator == None:
+    # when true, will use AI feedback to improve the model outputs TODO: is this true?
+    if input_file != None and round > 1:
         try:
             input_file = pd.read_csv(
                 input_file,
@@ -573,44 +570,47 @@ def create_scenarios(
             input_file = pd.read_json(
                 input_file
             )
-        if "ratings" not in input_file.columns or (
-            "creative_scenario" not in input_file.columns
-            and "creative_scenario_without_feedback" not in input_file.columns
-        ):
-            print("Input file does not contain both item ratings and item content!")
-            exit(-1)
+        # if "ratings" not in input_file.columns or (
+        #     "creative_scenario" not in input_file.columns
+        #     and "creative_scenario_without_feedback" not in input_file.columns
+        # ):
+        #     print("Input file does not contain both item ratings and item content!")
+        #     exit(-1)
 
-        input_file.rename(
-            {"creative_scenario": "creative_scenario_without_feedback"},
-            axis=1,
-            inplace=True,
-        )
-        input_file["creative_scenario_with_feedback"] = ""
+        # input_file.rename(
+        #     {"creative_scenario": "creative_scenario_without_feedback"},
+        #     axis=1,
+        #     inplace=True,
+        # )
+        input_file[f"creative_scenario_round_{round}"] = ""
         for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
             if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
                 time.sleep(2)
+            scenario_names = row['word_list'].split(",")[::2]
+            scenario_names = [re.sub(r"([0-9]{1}\.)","", s).strip() for s in scenario_names]
             result = test_creative_problem(
                 row["word_list"],
                 prompt_idx,
                 llm,
-                row["creative_scenario_without_feedback"],
+                scenario_names,
+                row[f"creative_scenario_round_{round-1}"],
                 row["topic"],
-                row["ratings"],
+                row[f"ratings_round_{round-1}"],
             )
-            input_file.at[index, "creative_scenario_with_feedback"] = result["output"]
+            input_file.at[index, f"creative_scenario_round_{round}"] = result["output"]
 
         # drop rows that failed quality controls
-        input_file = input_file[input_file["output"] != "None"]
+        # TODO: over multiple rounds, there could be many scenarios for the same wordlist + topic
+        # if at any point one of those comes back null, so long as prior iterations weren't null
+        # the row SHOULD NOT be deleted!
+        # change the drop to account for this, will need some careful engineering
+        input_file = input_file[input_file[f"creative_scenario_round_{round}"] != "None"]
         model_dir = model_name.replace("/", "-")
         input_file.to_json(
             f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}_{model_dir}.json",
         )
-
-    elif llm_evaluator != None and input_file == None:
-        # path for a fresh round of item generation with evaluation
-        print("Using an evaluator without an input file isn't implemented!")
-        pass
-    elif llm_evaluator == None and input_file == None:
+        print(f"Item gen finished, total items: {len(input_file)}")
+    elif input_file == None and round == 1:
         # path for a fresh round of item generation without evalution
         try:
             wordlists = pd.read_csv(
@@ -620,16 +620,16 @@ def create_scenarios(
             )
         except Exception:
             wordlists = pd.read_json(
-                f"/home/aml7990/Code/creativity-item-generation/outputs/{wordlist_file}.tsv",
+                f"/home/aml7990/Code/creativity-item-generation/outputs/{wordlist_file}.json",
             )
         wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
-        wordlists["creative_scenario"] = ""
+        wordlists[f"creative_scenario_round_{round}"] = ""
         wordlists["topic"] = ""
         wordlists_with_s = pd.DataFrame(columns=wordlists.columns)
         for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
             # generate 3 scenarios for each wordlist + topic
             # TODO: make an arg
-            for scenario in range(3):
+            for scenario in range(5):
                 if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
                     time.sleep(2)
                 # grab just the names in the wordlist, need for preprocessing
@@ -639,7 +639,7 @@ def create_scenarios(
                 new_scenario = pd.DataFrame(columns=wordlists_with_s.columns)
                 new_scenario = pd.DataFrame(
                     {
-                        "creative_scenario": result["output"],
+                        f"creative_scenario_round_{round}": result["output"],
                         "model_name": model_name,
                         "topic": topic,
                         "max_tokens": max_tokens,
@@ -653,20 +653,16 @@ def create_scenarios(
                     index=[0]
                 )
                 wordlists_with_s = pd.concat((wordlists_with_s,new_scenario))
-                # wordlists.at[index, "creative_scenario"] = result["output"]
-                # wordlists.at[index, "model_name"] = model_name
-                # wordlists.at[index, "topic"] = topic
-                # wordlists.at[index, "max_tokens"] = max_tokens
-                # wordlists.at[index, "presence_penalty"] = presence_penalty
 
         # drop rows that failed quality control metrics
         wordlists_with_s.reset_index(drop=True,inplace=True)
-        wordlists_with_s = wordlists_with_s[wordlists_with_s["creative_scenario"] != "None"]
+        wordlists_with_s = wordlists_with_s[wordlists_with_s[f"creative_scenario_round_{round}"] != "None"]
         model_dir = model_name.replace("/", "-")
         wordlists_with_s.to_json(
             f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.json",
             orient="records"
         )
+        print(f"Item gen finished, total items {len(wordlists_with_s)}")
     else:
         print("Unsupported combination of arguments!")
 
@@ -685,7 +681,6 @@ if __name__ == "__main__":
     parser.add_argument("--output_file", type=str)
     parser.add_argument("--batch_size", type=int)
     parser.add_argument("--input_file", type=str, default=None)
-    parser.add_argument("--llm_evaluator", type=str, default=None)
     parser.add_argument("--wordlist_file", type=str, default=None)
     parser = parser.parse_args()
     try:
@@ -698,7 +693,6 @@ if __name__ == "__main__":
         presence_penalty = parser.presence_penalty
         batch_size = parser.batch_size
         input_file = parser.input_file
-        llm_evaluator = parser.llm_evaluator
         wordlist_file = parser.wordlist_file
         if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
             model_kwargs = {
@@ -735,18 +729,18 @@ if __name__ == "__main__":
     except Exception:
         print("Model failed to initialize. Please check your API key.")
         exit(-1)
-    if task == "scenario_generation":
-        create_scenarios(
-            parser.prompt_idx,
-            parser.output_file,
-            parser.model_name,
-            llm,
-            input_file,
-            llm_evaluator,
-            wordlist_file,
-            presence_penalty=presence_penalty,
-        )
-    elif task == "wordlist generation":
+    # scenario generation should be done using the driver script, not from here
+    # if task == "scenario_generation": 
+    #     create_scenarios(
+    #         parser.prompt_idx,
+    #         parser.output_file,
+    #         parser.model_name,
+    #         llm,
+    #         input_file,
+    #         wordlist_file,
+    #         presence_penalty=presence_penalty,
+    #     )
+    if task == "wordlist generation":
         create_wordlists(parser.prompt_idx, parser.output_file, llm)
     else:
         print("Not a valid task name!")

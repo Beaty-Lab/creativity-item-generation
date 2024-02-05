@@ -11,15 +11,19 @@ from transformers import (
     AutoTokenizer,
 )
 from transformers import pipeline as hf_pipeline
+from key import key
 
 
 from langchain.schema import BaseOutputParser
 from langchain.prompts.chat import ChatPromptTemplate
+from langchain.chat_models import ChatOpenAI
 
 # API key stored in key.py, and should NOT be committed
 # from key import key
 from tqdm import tqdm
 from argparse import ArgumentParser
+
+# TODO: start working on few-shot selection optimizer
 
 
 # class for storing and manipulating prompts
@@ -70,7 +74,11 @@ class CreativityScenarioResponseParser(BaseOutputParser):
     # TODO: for the next round of items after feedback, get rid of everything generated before and after the start of the original item
     @staticmethod
     def parse(text: str) -> str:
-        text = text.strip("\n").strip(" ")
+        try:
+            text = text.strip("\n").strip(" ")
+        except Exception:
+            # OpenAIs models with yield an AIMessage object
+            text = text.content.strip("\n").strip(" ")
         # Remove intervening newlines
         text = re.sub("\n", "", text)
         text = re.sub("\t", "", text)
@@ -110,32 +118,45 @@ def test_creative_response(
 
 
 def create_scenario_responses(
-    llm, input_file: str = None, demographics_file: str = None
+    llm, round, input_file: str = None, demographics_file: str = None
 ):
-    input_file = pd.read_csv(
-        input_file,
-    )
+    try:
+        input_file = pd.read_csv(
+            input_file,
+            sep='\t',
+            index_col=0
+        )
+    except Exception:
+        input_file = pd.read_json(
+            input_file
+        )
     if demographics_file is not None:
         demographics_file = pd.read_csv(demographics_file)
     
     if demographics_file is not None:
         ai_responses = pd.DataFrame(
-            columns=[
-                "Problem",
-                "Dataset",
-                "ProblemID",
-                "set",
-                "response",
-                "ethnicity",
-                "gender",
-                "industry",
-                "title",
-            ]
+            columns=input_file.columns
+            # columns=[
+            #     "Problem",
+            #     "Dataset",
+            #     "ProblemID",
+            #     "set",
+            #     "response",
+            #     "ethnicity",
+            #     "gender",
+            #     "industry",
+            #     "title",
+            # ]
         )
-    else:
-        ai_responses = pd.DataFrame(
-            columns=["Problem", "Dataset", "ProblemID", "set", "response"]
-        )
+        ai_responses[f"response_round_{round}"] = ""
+        ai_responses[f"ethnicity_round_{round}"] = ""
+        ai_responses[f"gender_round_{round}"] = ""
+        ai_responses[f"industry_round_{round}"] = ""
+        ai_responses[f"title_round_{round}"] = ""
+    # else:
+    #     ai_responses = pd.DataFrame(
+    #         columns=["Problem", "Dataset", "ProblemID", "set", "response"]
+    #     )
     for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
         # generate 30 responses to each scenario
         # we assume demographics want to be included if the file was specified
@@ -145,12 +166,9 @@ def create_scenario_responses(
         for i in tqdm(range(30)):
             if demographics_file is not None:
                 participant = demographics_file.sample(n=1)
-                # demographics_file = demographics_file.T
-                # demographics_file.pop(participant.index)
-                # demographics_file = demographics_file.T
                 result = test_creative_response(
                     row["Problem"],
-                    1,
+                    1, # prompt_idx
                     llm,
                     participant["Q15"].values[0],  # ethnicity
                     participant["Q14"].values[0],  # gender
@@ -160,51 +178,57 @@ def create_scenario_responses(
             else:
                 result = test_creative_response(
                     row["Problem"],
-                    0,
+                    0, # prompt_idx
                     llm,
                 )
             if demographics_file is not None:
+                cur_row = row.copy()
+                row[f"response_round_{round}"] = result
                 ai_responses = pd.concat(
                     [
                         ai_responses,
-                        pd.DataFrame(
-                            {
-                                "Problem": row["Problem"],
-                                "response": result,
-                                "Dataset": row["Dataset"],
-                                "ProblemID": row["ProblemID"],
-                                "set": row["set"],
-                                "ethnicity": participant["Q15"].values[0],
-                                "gender": participant["Q14"].values[0],
-                                "industry": participant["Q24"].values[0],
-                                "title": participant["Q23"].values[0],
-                            },
-                            index=[0],
-                        ),
+                        cur_row
+                        # pd.DataFrame(
+                        #     {
+                        #         "Problem": row["Problem"],
+                        #         "response": result,
+                        #         "Dataset": row["Dataset"],
+                        #         "ProblemID": row["ProblemID"],
+                        #         "set": row["set"],
+                        #         "ethnicity": participant["Q15"].values[0],
+                        #         "gender": participant["Q14"].values[0],
+                        #         "industry": participant["Q24"].values[0],
+                        #         "title": participant["Q23"].values[0],
+                        #     },
+                        #     index=[0],
+                        # ),
                     ],
                     ignore_index=True,
                 )
             else:
+                cur_row = row.copy()
+                row[f"response_round_{round}"] = result
                 ai_responses = pd.concat(
                     [
                         ai_responses,
-                        pd.DataFrame(
-                            {
-                                "Problem": row["Problem"],
-                                "response": result,
-                                "Dataset": row["Dataset"],
-                                "ProblemID": row["ProblemID"],
-                                "set": row["set"],
-                            },
-                            index=[0],
-                        ),
+                        cur_row
+                        # pd.DataFrame(
+                        #     {
+                        #         "Problem": row["Problem"],
+                        #         "response": result,
+                        #         "Dataset": row["Dataset"],
+                        #         "ProblemID": row["ProblemID"],
+                        #         "set": row["set"],
+                        #     },
+                        #     index=[0],
+                        # ),
                     ],
                     ignore_index=True,
                 )
 
     # TODO: log model name and other params
-    ai_responses.to_csv(
-        "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/ai_outputs.csv",
+    ai_responses.to_json(
+        input_file,
     )
 
 
@@ -227,25 +251,40 @@ if __name__ == "__main__":
     top_p = parser.top_p
     frequency_penalty = parser.frequency_penalty
     presence_penalty = parser.presence_penalty
-    model_kwargs = {
+    
+    if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
+        model_kwargs = {
+            "top_p": top_p,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
+        }
+        llm = ChatOpenAI(
+            model_name=model_name,
+            openai_api_key=key,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            model_kwargs=model_kwargs,
+        )
+    else:
+        model_kwargs = {
         "top_p": top_p,
         "temperature": temperature,
         "device_map": "auto",
         # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-    }
-    tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name, load_in_8bit=True, **model_kwargs
-    )
-    pipeline = hf_pipeline(
-        task="text-generation",
-        model=model,
-        tokenizer=tokenizer,
-        batch_size=1,
-        max_new_tokens=max_tokens,
-        model_kwargs=model_kwargs,
-    )
-    llm = HuggingFacePipeline(pipeline=pipeline)
+        }
+        tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name, load_in_8bit=True, **model_kwargs
+        )
+        pipeline = hf_pipeline(
+            task="text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            batch_size=1,
+            max_new_tokens=max_tokens,
+            model_kwargs=model_kwargs,
+        )
+        llm = HuggingFacePipeline(pipeline=pipeline)
 
     create_scenario_responses(
         llm,

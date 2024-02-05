@@ -14,7 +14,7 @@ import time
 import transformers
 from argparse import ArgumentParser
 
-# os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
+# TODO: start working on few-shot selection optimizer.
 
 # Replicate Simones Auto Scorer
 def train_model(metric: str):
@@ -141,11 +141,24 @@ def train_model(metric: str):
 
 # use the trained autoscorer to get results on new item responses
 # make sure the prediction metric is the same as the model used to evaluate
-def evaluate_model(trained_model_dir: str, item_responses: pd.DataFrame, prediction_name: str):
+def evaluate_model(trained_model_dir: str, item_responses: str, prediction_name: str, save_file: str, round: int):
   accelerator = Accelerator()
   np.random.seed(40) # sets a randomization seed for reproducibility
   transformers.set_seed(40)
-  d = pd.read_csv(item_responses)
+  
+  # item_responses and save_file should point to the same file
+  # we load twice so we can save without losing any columns
+  if "json" not in item_responses:
+    d = pd.read_csv(item_responses)
+  else:
+    d = pd.read_json(item_responses)
+  
+  if "json" not in save_file:
+    save_file = pd.read_csv(save_file)
+  else:
+    save_file = pd.read_json(save_file)
+  
+
   d['text'] = d['response']
   d_input = d.filter(['text'], axis = 1)
   dataset = Dataset.from_pandas(d_input, preserve_index = False) # Turns pandas data into huggingface/pytorch dataset
@@ -193,8 +206,10 @@ def evaluate_model(trained_model_dir: str, item_responses: pd.DataFrame, predict
 
   prediction = trainer.predict(tokenized_datasets)
   test_data = {'text':tokenized_datasets['text'],f'{prediction_name}':np.squeeze(prediction.predictions)}
-  dataset_test_df = pd.DataFrame(test_data)
-  dataset_test_df.to_csv(f'PredictedAISet{prediction_name}.csv')
+  save_file[f"{prediction_name}_round_{round}"] = test_data['prediction_name']
+  save_file.to_json(item_responses)
+  # dataset_test_df = pd.DataFrame(test_data)
+  # dataset_test_df.to_json(item_responses)
 
 
 

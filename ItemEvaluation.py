@@ -181,6 +181,7 @@ def test_creative_problem_eval(prompt_idx: int, scenario: str, llm):
     return output
 
 
+# TODO: make round work with the eval script
 def evaluate_scenarios(
     prompt_idx: int,
     output_file: str,
@@ -189,64 +190,34 @@ def evaluate_scenarios(
     round: int,
     scenario_col: str,
 ):
-    if round == 1:
-        try:
-            scenarios = pd.read_csv(
-                f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}.tsv",
-                sep="\t",
-                index_col=0,
-            )
-        except Exception:
-            scenarios = pd.read_json(
-                f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}.json",
-            )
-        scenarios["ratings_round_1"] = ""
-        scenarios["Evaluator"] = model_name
-        for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
-            time.sleep(2)
-            evaluation = test_creative_problem_eval(
-                prompt_idx,
-                row[scenario_col],  # "creative_scenario_without_feedback"
-                llm,
-            )
-            if evaluation == None:
-                continue
-            scenarios.at[index, "ratings_round_1"] = evaluation
-
-        # drop rows that failed quality control metrics
-        scenarios = scenarios[scenarios["ratings_round_1"] != ""]
-        scenarios.to_json(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.json",
+    try:
+        scenarios = pd.read_csv(
+            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}.tsv",
+            sep="\t",
+            index_col=0,
         )
-    elif round == 2:
-        try:
-            scenarios = pd.read_csv(
-                f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.tsv",
-                sep="\t",
-                # index_col=0,
-            )
-        except Exception:
-            scenarios = pd.read_json(
-                f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.json",
-            )
-        scenarios["ratings_round_2"] = ""
-        scenarios["Evaluator"] = model_name
-        for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
-            time.sleep(2)
-            evaluation = test_creative_problem_eval(
-                prompt_idx,
-                row[scenario_col],  # "creative_scenario_with_feedback"
-                llm,
-            )
-            if evaluation == None:
-                continue
-            scenarios.at[index, "ratings_round_2"] = evaluation
-
-        # drop rows that failed quality control metrics
-        scenarios = scenarios[scenarios["ratings_round_2"] != ""]
-        scenarios.to_json(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.tsv",
+    except Exception:
+        scenarios = pd.read_json(
+            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}.json",
         )
+    scenarios[f"ratings_round_{round}"] = ""
+    scenarios["Evaluator"] = model_name
+    for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
+        time.sleep(2)
+        evaluation = test_creative_problem_eval(
+            prompt_idx,
+            row[scenario_col],  # "creative_scenario_round_i"
+            llm,
+        )
+        if evaluation == None:
+            continue    # the model failed a quality control check in the generation
+        scenarios.at[index, f"ratings_round_{round}"] = evaluation
+
+    # drop rows that failed quality control metrics
+    scenarios = scenarios[scenarios[f"ratings_round_{round}"] != ""]
+    scenarios.to_json(
+        f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.json",
+    )
 
 
 if __name__ == "__main__":
