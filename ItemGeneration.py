@@ -397,7 +397,7 @@ class CreativityScenarioItemParser(BaseOutputParser):
         text = re.sub("\n", "", text)
         text = re.sub("\t", "", text)
         readability = Readability(text)
-        if len(word_tokenize(text)) < 120:  # drop scenarios that are too short
+        if len(word_tokenize(text)) < 150:  # drop scenarios that are too short
             print("Scenario too short.")
             text = "None"
         # elif "dilemma" in text:
