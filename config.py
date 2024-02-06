@@ -1,0 +1,38 @@
+# TODO: add experiment config as a dictionary
+#         itemResponseEvalModelDir: str, # TODO: is this needed?
+#         inputFile: str
+config = {
+    "numIter": 2,
+    "itemGenModelName": "meta-llama/Llama-2-7b-chat-hf",
+    "useItemEvalModel": True,
+    "itemEvalModelName": "gpt-4",
+    "itemResponseGenModelName": "meta-llama/Llama-2-7b-chat-hf",
+    "itemResponseEvalModelName": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_mean_score",
+    "itemGenFrequencyPenalty": 0.0,
+    "itemEvalFrequencyPenalty": 0.0,
+    "itemResponseGenFrequencyPenalty": 0.0,
+    "itemGenPresencePenalty": 0.0,
+    "itemEvalPresencePenalty": 0.0,
+    "itemResponseGenPresencePenalty": 0.0,
+    "itemGenTemperature": 1.0,
+    "itemEvalTemperature": 0.0,
+    "itemResponseGenTemperature": 1.0,
+    "itemGenTopP": 1.0,
+    "itemEvalTopP": 1.0,
+    "itemResponseGenTopP": 1.0,
+    "itemGenPromptIdx": 8,
+    "itemEvalPromptIdx": 0,
+    "itemResponseGenPromptIdx": 0,
+    "itemGenMaxTokens": 1024,
+    "itemEvalMaxTokens": 1024,
+    "itemResponseGenMaxTokens": 1024,
+    "wordlistFile": "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",
+    "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/DemographicData.csv",
+    "itemGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/debug_driver_script/debug_test.json",
+    "itemEvalOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/debug_driver_script/debug_test.json",
+    "itemResponseGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/debug_driver_script/debug_test.json",
+    "itemResponseEvalOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/debug_driver_script/debug_test.json",
+    "numItemsPerList": 1,
+    "itemResponseOriginalityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
+    "itemResponseQualityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/"
+}
