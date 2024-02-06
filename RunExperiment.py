@@ -11,8 +11,9 @@ And giving control of each.
 Initially, for simplicity, we will only support CPS.
 All parameters are stored in config.py
 """
+
 import ItemGeneration, ItemEvaluation
-import uuid # used for experiment ids
+import uuid  # used for experiment ids
 from optimize_item_gen_prompt import GenerateCPSResponses, RLPS_RoBERTa
 from config import config
 from key import key
@@ -36,44 +37,50 @@ Parameters:
     itemResponseEvalMetric: str, the metric for item response evaluation
     numItemsPerList: int, the number of items per wordlist to generate
 """
-def RunExperiment(
-        config: dict
-):
+
+
+def RunExperiment(config: dict):
     # TODO (MAYBE): log metrics to wandb!
-    experiment_id = str(uuid.uuid4())
     for i in range(config["numIter"]):
-        print(f"Starting iteration {i} of experiment {experiment_id}")
+        print(f"Starting iteration {i} of experiment")
         print("Generating items")
         try:
             # load item gen model
-            if config["itemGenModelName"] == "gpt-4" or config["itemGenModelName"] == "gpt-3.5-turbo":
-                    model_kwargs = {
-                        "top_p": config["itemGenTopP"],
-                        "frequency_penalty": config["itemGenFrequencyPenalty"],
-                        "presence_penalty": config["itemGenPresencePenalty"],
-                    }
-                    llm = ChatOpenAI(
-                        model_name=config["itemGenModelName"],
-                        openai_api_key=key,
-                        temperature=config["itemGenTemperature"],
-                        max_tokens=config["itemGenMaxTokens"],
-                        model_kwargs=model_kwargs,
-                    )
+            if (
+                config["itemGenModelName"] == "gpt-4"
+                or config["itemGenModelName"] == "gpt-3.5-turbo"
+            ):
+                model_kwargs = {
+                    "top_p": config["itemGenTopP"],
+                    "frequency_penalty": config["itemGenFrequencyPenalty"],
+                    "presence_penalty": config["itemGenPresencePenalty"],
+                }
+                llm = ChatOpenAI(
+                    model_name=config["itemGenModelName"],
+                    openai_api_key=key,
+                    temperature=config["itemGenTemperature"],
+                    max_tokens=config["itemGenMaxTokens"],
+                    model_kwargs=model_kwargs,
+                )
             else:
                 model_kwargs = {
                     "top_p": config["itemGenTopP"],
-                    "temperature": config['itemGenTemperature'],
+                    "temperature": config["itemGenTemperature"],
                     "device_map": "auto",
                     # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
                 }
-                tokenizer = AutoTokenizer.from_pretrained(config['itemGenModelName'], **model_kwargs)
-                model = AutoModelForCausalLM.from_pretrained(config['itemGenModelName'], load_in_8bit=True, **model_kwargs)
+                tokenizer = AutoTokenizer.from_pretrained(
+                    config["itemGenModelName"], **model_kwargs
+                )
+                model = AutoModelForCausalLM.from_pretrained(
+                    config["itemGenModelName"], load_in_8bit=True, **model_kwargs
+                )
                 pipeline = hf_pipeline(
                     task="text-generation",
                     model=model,
                     tokenizer=tokenizer,
                     batch_size=1,
-                    max_new_tokens=config['itemGenMaxTokens'],
+                    max_new_tokens=config["itemGenMaxTokens"],
                     model_kwargs=model_kwargs,
                 )
                 llm = HuggingFacePipeline(pipeline=pipeline)
@@ -81,44 +88,59 @@ def RunExperiment(
         except Exception:
             print("Model failed to initialize. Please check your API key.")
             exit(-1)
-        
 
-        if i == 1:
+        if i == 0:
             ItemGeneration.create_scenarios(
-                config['itemGenPromptIdx'],
-                f"{config['itemGenOutputFile']}_iteration_{i}_{experiment_id}",
-                config['itemGenModelName'],
+                config["itemGenPromptIdx"],
+                config['itemGenOutputFile'],
+                config["itemGenModelName"],
                 llm,
-                i, # round
-                input_file=None, # TODO: needs to change for multiple iterations!
-                wordlist_file=config['wordlistFile'],
+                i,  # round
+                config["itemGenMaxTokens"],
+                config["itemGenPresencePenalty"],
+                config["itemGenFrequencyPenalty"],
+                config["itemGenTemperature"],
+                config["itemGenTopP"],
+                config["itemGenOutputFile"],
+                input_file=None,
+                wordlist_file=config["wordlistFile"],
+                num_items_per_prompt=config["numItemsPerList"],
             )
         elif i >= 1:
-            # TODO: finish
             ItemGeneration.create_scenarios(
-                config['itemGenPromptIdx'],
-                f"{config['itemGenOutputFile']}_iteration_{i}_{experiment_id}",
-                config['itemGenModelName'],
+                config["itemGenPromptIdx"],
+                config['itemGenOutputFile'],
+                config["itemGenModelName"],
                 llm,
-                i, # round
-                input_file=f"{config['itemGenOutputFile']}_iteration_{i-1}_{experiment_id}", # TODO: make sure the output file is consistent from the item evaluator, etc
-                wordlist_file=None,
+                i,  # round
+                config["itemGenMaxTokens"],
+                config["itemGenPresencePenalty"],
+                config["itemGenFrequencyPenalty"],
+                config["itemGenTemperature"],
+                config["itemGenTopP"],
+                config["itemGenOutputFile"],
+                input_file=config['itemGenOutputFile'],  # TODO: make sure the output file is consistent from the item evaluator, etc
+                wordlist_file=config["wordlistFile"],
+                num_items_per_prompt=config["numItemsPerList"],
             )
         # evaluate items
-        if config['useItemEvalModel']:
+        if config["useItemEvalModel"]:
             print("Evaluating Items")
             try:
-                if config['itemEvalModelName'] == "gpt-4" or config['itemEvalModelName'] == "gpt-3.5-turbo":
+                if (
+                    config["itemEvalModelName"] == "gpt-4"
+                    or config["itemEvalModelName"] == "gpt-3.5-turbo"
+                ):
                     model_kwargs = {
-                        "top_p": config['itemEvalTopP'],
-                        "frequency_penalty": config['itemEvalFrequencyPenalty'],
-                        "presence_penalty": config['itemEvalPresencePenalty'],
+                        "top_p": config["itemEvalTopP"],
+                        "frequency_penalty": config["itemEvalFrequencyPenalty"],
+                        "presence_penalty": config["itemEvalPresencePenalty"],
                     }
                     llm = ChatOpenAI(
-                        model_name=config['itemEvalModelName'],
+                        model_name=config["itemEvalModelName"],
                         openai_api_key=key,
-                        temperature=config['itemEvalTemperature'],
-                        max_tokens=config['itemEvalMaxTokens'],
+                        temperature=config["itemEvalTemperature"],
+                        max_tokens=config["itemEvalMaxTokens"],
                         model_kwargs=model_kwargs,
                     )
 
@@ -127,82 +149,95 @@ def RunExperiment(
 
             except Exception:
                 print("Model failed to initialize. Please check your API key.")
-                exit(-1) 
-            
+                exit(-1)
+
             ItemEvaluation.evaluate_scenarios(
-                config['itemEvalPromptIdx'],
-                f"{config['itemEvalOutputFile']}_iteration_{i}_{experiment_id}",
-                config['itemEvalModelName'],
+                config["itemEvalPromptIdx"],
+                config['itemEvalOutputFile'],
+                config["itemEvalModelName"],
                 llm,
-                i, # round
+                i,  # round
                 f"creative_scenario_round_{i}",
+                config["itemEvalOutputFile"],
+                config["itemGenOutputFile"],
+                config["itemEvalFrequencyPenalty"],
+                config["itemEvalPresencePenalty"],
+                config["itemEvalMaxTokens"],
+                config["itemEvalTemperature"],
+                config["itemEvalTopP"]
             )
-        
+
         print("Generating Item Responses")
         # generate item responses
         try:
-            if config['itemResponseGenModelName'] == "gpt-4" or config['itemResponseGenModelName'] == "gpt-3.5-turbo":
+            if (
+                config["itemResponseGenModelName"] == "gpt-4"
+                or config["itemResponseGenModelName"] == "gpt-3.5-turbo"
+            ):
                 model_kwargs = {
-                    "top_p": config['itemResponseGenTopP'],
-                    "frequency_penalty": config['itemResponseGenFrequencyPenalty'],
-                    "presence_penalty": config['itemResponseGenPresencePenalty'],
+                    "top_p": config["itemResponseGenTopP"],
+                    "frequency_penalty": config["itemResponseGenFrequencyPenalty"],
+                    "presence_penalty": config["itemResponseGenPresencePenalty"],
                 }
                 llm = ChatOpenAI(
-                    model_name=config['itemResponseGenModelName'],
+                    model_name=config["itemResponseGenModelName"],
                     openai_api_key=key,
-                    temperature=config['itemResponseGenTemperature'],
-                    max_tokens=config['itemResponseGenMaxTokens'],
+                    temperature=config["itemResponseGenTemperature"],
+                    max_tokens=config["itemResponseGenMaxTokens"],
                     model_kwargs=model_kwargs,
                 )
             else:
                 model_kwargs = {
-                "top_p": config['itemResponseGenTopP'],
-                "temperature": config['itemResponseGenTemperature'],
-                "device_map": "auto",
-                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                    "top_p": config["itemResponseGenTopP"],
+                    "temperature": config["itemResponseGenTemperature"],
+                    "device_map": "auto",
+                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
                 }
-                tokenizer = AutoTokenizer.from_pretrained(config['itemResponseGenModelName'], **model_kwargs)
+                tokenizer = AutoTokenizer.from_pretrained(
+                    config["itemResponseGenModelName"], **model_kwargs
+                )
                 model = AutoModelForCausalLM.from_pretrained(
-                    config['itemResponseGenModelName'], load_in_8bit=True, **model_kwargs
+                    config["itemResponseGenModelName"],
+                    load_in_8bit=True,
+                    **model_kwargs,
                 )
                 pipeline = hf_pipeline(
                     task="text-generation",
                     model=model,
                     tokenizer=tokenizer,
                     batch_size=1,
-                    max_new_tokens=config['itemResponseGenMaxTokens'],
+                    max_new_tokens=config["itemResponseGenMaxTokens"],
                     model_kwargs=model_kwargs,
                 )
                 llm = HuggingFacePipeline(pipeline=pipeline)
         except Exception:
             print("Model failed to initialize. Please check your API key.")
             exit(-1)
-        
+
+        # TODO: whether or not item eval was used should be check to make sure the correct file is updated.
         GenerateCPSResponses.create_scenario_responses(
             llm,
-            i, # round
-            f"{config['itemGenOutputFile']}_iteration_{i}_{experiment_id}",
-            config['demographicsFile']
+            i,  # round
+            f"{config['itemGenOutputFile']}",
+            config["demographicsFile"],
         )
-        
+
         # evaluate item responses
-        # TODO: we need to evaluate originality AND quality each time
-        # so 2 separate model calls
-        if config['useItemEvalModel']:
-            RLPS_RoBERTa.evaluate(
-                config['itemResponseEvalModelDir'],
-                f"{config['itemEvalOutputFile']}_iteration_{i}_{experiment_id}",
-                config['itemResponseEvalMetric'],
-                f"{config['itemEvalOutputFile']}_iteration_{i}_{experiment_id}", # we need to chop off most columns from the first instance, so send another copy to save to
-                i, # round
+        if config["useItemEvalModel"]:
+            RLPS_RoBERTa.evaluate_model(
+                config["itemResponseOriginalityModelDir"],
+                config['itemEvalOutputFile'],
+                "originality",
+                config['itemEvalOutputFile'],  # we need to chop off most columns from the first instance, so send another copy to save to
+                i,  # round
             )
-        else:
-            RLPS_RoBERTa.evaluate(
-                config['itemResponseEvalModelDir'],
-                f"{config['itemGenOutputFile']}_iteration_{i}_{experiment_id}",
-                config['itemResponseEvalMetric'],
-                f"{config['itemGenOutputFile']}_iteration_{i}_{experiment_id}",
-                i
+            RLPS_RoBERTa.evaluate_model(
+                config["itemResponseQualityModelDir"],
+                config['itemEvalOutputFile'],
+                "quality",
+                config['itemEvalOutputFile'],  # we need to chop off most columns from the first instance, so send another copy to save to
+                i,  # round
             )
+
 
 RunExperiment(config)

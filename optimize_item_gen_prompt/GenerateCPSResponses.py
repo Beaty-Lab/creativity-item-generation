@@ -118,57 +118,36 @@ def test_creative_response(
 
 
 def create_scenario_responses(
-    llm, round, input_file: str = None, demographics_file: str = None
+    llm, round, input_file_name: str = None, demographics_file: str = None
 ):
-    try:
-        input_file = pd.read_csv(
-            input_file,
-            sep='\t',
-            index_col=0
-        )
-    except Exception:
-        input_file = pd.read_json(
-            input_file
-        )
+    input_file = pd.read_json(input_file_name)
     if demographics_file is not None:
-        demographics_file = pd.read_csv(demographics_file)
+        demographics_file = pd.read_csv(demographics_file,index_col=0)
+
+    if demographics_file is not None:
+        input_file[f"response_round_{round}"] = ""
+        input_file[f"ethnicity_round_{round}"] = ""
+        input_file[f"gender_round_{round}"] = ""
+        input_file[f"industry_round_{round}"] = ""
+        input_file[f"title_round_{round}"] = ""
+    else:
+        input_file[f"response_round_{round}"] = ""
     
-    if demographics_file is not None:
-        ai_responses = pd.DataFrame(
-            columns=input_file.columns
-            # columns=[
-            #     "Problem",
-            #     "Dataset",
-            #     "ProblemID",
-            #     "set",
-            #     "response",
-            #     "ethnicity",
-            #     "gender",
-            #     "industry",
-            #     "title",
-            # ]
-        )
-        ai_responses[f"response_round_{round}"] = ""
-        ai_responses[f"ethnicity_round_{round}"] = ""
-        ai_responses[f"gender_round_{round}"] = ""
-        ai_responses[f"industry_round_{round}"] = ""
-        ai_responses[f"title_round_{round}"] = ""
-    # else:
-    #     ai_responses = pd.DataFrame(
-    #         columns=["Problem", "Dataset", "ProblemID", "set", "response"]
-    #     )
     for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
         # generate 30 responses to each scenario
         # we assume demographics want to be included if the file was specified
         # if so, create a "profile" by drawing a random sample from that file
         # do not sample them again twice
-        print(row["Problem"])
-        for i in tqdm(range(30)):
+        for i in tqdm(range(30)):  # TODO: make this a param
             if demographics_file is not None:
                 participant = demographics_file.sample(n=1)
+                input_file.at[index, f"ethnicity_round_{round}"] = participant["Q15"].values[0]
+                input_file.at[index, f"gender_round_{round}"] = participant["Q14"].values[0]
+                input_file.at[index, f"industry_round_{round}"] = participant["Q24"].values[0]
+                input_file.at[index, f"title_round_{round}"] = participant["Q23"].values[0]
                 result = test_creative_response(
-                    row["Problem"],
-                    1, # prompt_idx
+                    row[f"creative_scenario_round_{round}"],
+                    1,  # prompt_idx
                     llm,
                     participant["Q15"].values[0],  # ethnicity
                     participant["Q14"].values[0],  # gender
@@ -177,58 +156,15 @@ def create_scenario_responses(
                 )
             else:
                 result = test_creative_response(
-                    row["Problem"],
-                    0, # prompt_idx
+                    row[f"creative_scenario_round_{round}"],
+                    0,  # prompt_idx
                     llm,
                 )
-            if demographics_file is not None:
-                cur_row = row.copy()
-                row[f"response_round_{round}"] = result
-                ai_responses = pd.concat(
-                    [
-                        ai_responses,
-                        cur_row
-                        # pd.DataFrame(
-                        #     {
-                        #         "Problem": row["Problem"],
-                        #         "response": result,
-                        #         "Dataset": row["Dataset"],
-                        #         "ProblemID": row["ProblemID"],
-                        #         "set": row["set"],
-                        #         "ethnicity": participant["Q15"].values[0],
-                        #         "gender": participant["Q14"].values[0],
-                        #         "industry": participant["Q24"].values[0],
-                        #         "title": participant["Q23"].values[0],
-                        #     },
-                        #     index=[0],
-                        # ),
-                    ],
-                    ignore_index=True,
-                )
-            else:
-                cur_row = row.copy()
-                row[f"response_round_{round}"] = result
-                ai_responses = pd.concat(
-                    [
-                        ai_responses,
-                        cur_row
-                        # pd.DataFrame(
-                        #     {
-                        #         "Problem": row["Problem"],
-                        #         "response": result,
-                        #         "Dataset": row["Dataset"],
-                        #         "ProblemID": row["ProblemID"],
-                        #         "set": row["set"],
-                        #     },
-                        #     index=[0],
-                        # ),
-                    ],
-                    ignore_index=True,
-                )
+            
+            input_file.at[index, f"response_round_{round}"] = result
 
-    # TODO: log model name and other params
-    ai_responses.to_json(
-        input_file,
+    input_file.to_json(
+        input_file_name,
     )
 
 
@@ -251,7 +187,7 @@ if __name__ == "__main__":
     top_p = parser.top_p
     frequency_penalty = parser.frequency_penalty
     presence_penalty = parser.presence_penalty
-    
+
     if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
         model_kwargs = {
             "top_p": top_p,
@@ -267,10 +203,10 @@ if __name__ == "__main__":
         )
     else:
         model_kwargs = {
-        "top_p": top_p,
-        "temperature": temperature,
-        "device_map": "auto",
-        # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+            "top_p": top_p,
+            "temperature": temperature,
+            "device_map": "auto",
+            # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
         }
         tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
         model = AutoModelForCausalLM.from_pretrained(

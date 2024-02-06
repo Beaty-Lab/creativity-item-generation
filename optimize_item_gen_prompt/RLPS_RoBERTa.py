@@ -148,23 +148,14 @@ def evaluate_model(trained_model_dir: str, item_responses: str, prediction_name:
   
   # item_responses and save_file should point to the same file
   # we load twice so we can save without losing any columns
-  if "json" not in item_responses:
-    d = pd.read_csv(item_responses)
-  else:
-    d = pd.read_json(item_responses)
+  d = pd.read_json(item_responses)
   
-  if "json" not in save_file:
-    save_file = pd.read_csv(save_file)
-  else:
-    save_file = pd.read_json(save_file)
+  save_file = pd.read_json(save_file)
   
 
-  d['text'] = d['response']
+  d['text'] = d[f'response_round_{round}']
   d_input = d.filter(['text'], axis = 1)
   dataset = Dataset.from_pandas(d_input, preserve_index = False) # Turns pandas data into huggingface/pytorch dataset
-  print(dataset) # show the dataset dictionary
-  print(dataset.features)
-  time.sleep(5)
 
   model = AutoModelForSequenceClassification.from_pretrained(trained_model_dir, num_labels = 1) # TONS of settings in the model call, but labels = 1
   tokenizer = AutoTokenizer.from_pretrained(trained_model_dir) # ...some settings in the tokenizer call
@@ -206,14 +197,13 @@ def evaluate_model(trained_model_dir: str, item_responses: str, prediction_name:
 
   prediction = trainer.predict(tokenized_datasets)
   test_data = {'text':tokenized_datasets['text'],f'{prediction_name}':np.squeeze(prediction.predictions)}
-  save_file[f"{prediction_name}_round_{round}"] = test_data['prediction_name']
+  save_file[f"{prediction_name}_round_{round}"] = test_data[prediction_name]
   save_file.to_json(item_responses)
   # dataset_test_df = pd.DataFrame(test_data)
   # dataset_test_df.to_json(item_responses)
 
 
 
-# TODO: keep ALL the columns in the original df
 if __name__ == "__main__":
   parser = ArgumentParser()
   parser.add_argument("--task", type=str)

@@ -181,7 +181,6 @@ def test_creative_problem_eval(prompt_idx: int, scenario: str, llm):
     return output
 
 
-# TODO: make round work with the eval script
 def evaluate_scenarios(
     prompt_idx: int,
     output_file: str,
@@ -189,18 +188,24 @@ def evaluate_scenarios(
     llm,
     round: int,
     scenario_col: str,
+    itemEvalOutputFile: str,
+    itemGenOutputFile: str,
+    itemEvalFrequencyPenalty: float,
+    itemEvalPresencePenalty: float,
+    itemEvalMaxTokens: int,
+    itemEvalTemperature: float,
+    itemEvalTopP: float
 ):
-    try:
-        scenarios = pd.read_csv(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}.tsv",
-            sep="\t",
-            index_col=0,
-        )
-    except Exception:
-        scenarios = pd.read_json(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}.json",
-        )
+
+    scenarios = pd.read_json(
+        itemGenOutputFile,
+    )
     scenarios[f"ratings_round_{round}"] = ""
+    scenarios["item_eval_frequency_penalty"] = itemEvalFrequencyPenalty
+    scenarios["item_eval_presence_penalty"] = itemEvalPresencePenalty
+    scenarios["item_eval_max_tokens"] = itemEvalMaxTokens
+    scenarios["item_eval_temperature"] = itemEvalTemperature
+    scenarios["item_eval_top_p"] = itemEvalTopP
     scenarios["Evaluator"] = model_name
     for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
         time.sleep(2)
@@ -216,7 +221,7 @@ def evaluate_scenarios(
     # drop rows that failed quality control metrics
     scenarios = scenarios[scenarios[f"ratings_round_{round}"] != ""]
     scenarios.to_json(
-        f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}.json",
+        itemEvalOutputFile,
     )
 
 

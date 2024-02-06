@@ -274,7 +274,7 @@ class PromptGenerator:
                     ###
 
                     Scenario:""",
-                            ),
+                ),
             ],
             [  # 9, including the evaluation scale (for LLM feedback)
                 (
@@ -294,7 +294,7 @@ class PromptGenerator:
                     11. The best scenarios allow room for a wide range of creative responses beyond the obvious, with interpersonal issues as well as task/goal-related pressures.
 
                     
-                    Each scenario you create will be rated according to this rubric:
+                    Each scenario you create will be rated according to this rubric. Please use this rubric as a reference while you are writing the scenario, but do NOT rate your scenario using the rubric:
                     Complexity
                     1 = No competing demands
                     2 = Some competing demands
@@ -392,6 +392,7 @@ class CreativityScenarioItemParser(BaseOutputParser):
             assert type(text) == str
         except Exception:
             pass
+
         text = text.strip("\n").strip(" ")
         # Remove intervening newlines
         text = re.sub("\n", "", text)
@@ -420,7 +421,7 @@ class CreativityScenarioItemParser(BaseOutputParser):
         elif len(re.findall(r"([0-9]{1}\.[a-zA-Z\W]+\?)", text)) != 0:
             print("LLM output possible solutions.")
             text = "None"
-        
+
         # the scenario should start with one of the named characters from the wordlist
         # check for this and remove all text preceding it
         if text != "None":
@@ -429,19 +430,8 @@ class CreativityScenarioItemParser(BaseOutputParser):
             if first_word not in scenario_names:
                 print("Scenario does not begin with character name")
                 text = "None"
-        
 
-        js_output = {
-            "model_name": model_name,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "output": text,
-            "top_p": top_p,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
-            "item_type": "creative_scenario",
-        }
-        return js_output
+        return text
 
 
 # test the chain
@@ -554,40 +544,28 @@ def create_scenarios(
     model_name: str,
     llm,
     round,
+    max_tokens: int,
+    presence_penalty: float,
+    frequency_penalty: float,
+    temperature: float,
+    top_p: float,
+    itemGenOutputFile: str,
     input_file: str = None,
     wordlist_file: str = None,
-    presence_penalty: float = 0.0
+    num_items_per_prompt: int = 1,
 ):
-    # when true, will use AI feedback to improve the model outputs TODO: is this true?
-    if input_file != None and round > 1:
-        try:
-            input_file = pd.read_csv(
-                input_file,
-                sep="\t",
-                index_col=0,
-            )
-        except Exception:
-            input_file = pd.read_json(
-                input_file
-            )
-        # if "ratings" not in input_file.columns or (
-        #     "creative_scenario" not in input_file.columns
-        #     and "creative_scenario_without_feedback" not in input_file.columns
-        # ):
-        #     print("Input file does not contain both item ratings and item content!")
-        #     exit(-1)
-
-        # input_file.rename(
-        #     {"creative_scenario": "creative_scenario_without_feedback"},
-        #     axis=1,
-        #     inplace=True,
-        # )
+    # when true, will use add new items to an existing file
+    if input_file != None and round >= 1:
+        input_file = pd.read_json(input_file)
+        
         input_file[f"creative_scenario_round_{round}"] = ""
         for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
             if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
                 time.sleep(2)
-            scenario_names = row['word_list'].split(",")[::2]
-            scenario_names = [re.sub(r"([0-9]{1}\.)","", s).strip() for s in scenario_names]
+            scenario_names = row["word_list"].split(",")[::2]
+            scenario_names = [
+                re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
+            ]
             result = test_creative_problem(
                 row["word_list"],
                 prompt_idx,
@@ -597,70 +575,73 @@ def create_scenarios(
                 row["topic"],
                 row[f"ratings_round_{round-1}"],
             )
-            input_file.at[index, f"creative_scenario_round_{round}"] = result["output"]
+            input_file.at[index, f"creative_scenario_round_{round}"] = result
 
         # drop rows that failed quality controls
         # TODO: over multiple rounds, there could be many scenarios for the same wordlist + topic
         # if at any point one of those comes back null, so long as prior iterations weren't null
         # the row SHOULD NOT be deleted!
         # change the drop to account for this, will need some careful engineering
-        input_file = input_file[input_file[f"creative_scenario_round_{round}"] != "None"]
-        model_dir = model_name.replace("/", "-")
+        input_file = input_file[
+            input_file[f"creative_scenario_round_{round}"] != "None"
+        ]
         input_file.to_json(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/with_eval_scores/{output_file}_{model_dir}.json",
+            itemGenOutputFile, orient="records"
         )
         print(f"Item gen finished, total items: {len(input_file)}")
-    elif input_file == None and round == 1:
+    elif input_file == None and round == 0:
         # path for a fresh round of item generation without evalution
-        try:
-            wordlists = pd.read_csv(
-                f"/home/aml7990/Code/creativity-item-generation/outputs/{wordlist_file}.tsv",
-                sep="\t",
-                index_col=0,
-            )
-        except Exception:
-            wordlists = pd.read_json(
-                f"/home/aml7990/Code/creativity-item-generation/outputs/{wordlist_file}.json",
-            )
+        wordlists = pd.read_csv(
+            wordlist_file,
+            sep="\t"
+        )
         wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
         wordlists[f"creative_scenario_round_{round}"] = ""
         wordlists["topic"] = ""
-        wordlists_with_s = pd.DataFrame(columns=wordlists.columns)
+        wordlists_with_s = pd.DataFrame()
         for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
             # generate 3 scenarios for each wordlist + topic
-            # TODO: make an arg
-            for scenario in range(5):
+            for scenario in range(num_items_per_prompt):
                 if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
                     time.sleep(2)
                 # grab just the names in the wordlist, need for preprocessing
-                scenario_names = row['word_list'].split(",")[::2]
-                scenario_names = [re.sub(r"([0-9]{1}\.)","", s).strip() for s in scenario_names]
-                result, topic = test_creative_problem(row["word_list"], prompt_idx, llm, scenario_names)
-                new_scenario = pd.DataFrame(columns=wordlists_with_s.columns)
+                scenario_names = row["word_list"].split(",")[::2]
+                scenario_names = [
+                    re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
+                ]
+                result, topic = test_creative_problem(
+                    row["word_list"],
+                    prompt_idx,
+                    llm,
+                    scenario_names,
+                )
                 new_scenario = pd.DataFrame(
                     {
-                        f"creative_scenario_round_{round}": result["output"],
-                        "model_name": model_name,
+                        f"creative_scenario_round_{round}": result,
+                        "item_gen_model_name": model_name,
                         "topic": topic,
-                        "max_tokens": max_tokens,
-                        "presence_penalty": presence_penalty,
-                        "frequency_penalty": row['frequency_penalty'],
-                        "temperature": row["temperature"],
+                        "item_gen_max_tokens": max_tokens,
+                        "item_gen_presence_penalty": presence_penalty,
+                        "item_gen_frequency_penalty": frequency_penalty,
+                        "item_gen_temperature": temperature,
                         "item_type": row["item_type"],
-                        "top_p": row["top_p"],
-                        "word_list": row["word_list"]
+                        "item_gen_top_p": top_p,
+                        "word_list": row["word_list"],
                     },
-                    index=[0]
+                    index=[0],
                 )
-                wordlists_with_s = pd.concat((wordlists_with_s,new_scenario))
+                wordlists_with_s = pd.concat((wordlists_with_s, new_scenario))
 
+        
         # drop rows that failed quality control metrics
-        wordlists_with_s.reset_index(drop=True,inplace=True)
-        wordlists_with_s = wordlists_with_s[wordlists_with_s[f"creative_scenario_round_{round}"] != "None"]
+        wordlists_with_s.reset_index(drop=True, inplace=True)
+        wordlists_with_s = wordlists_with_s[
+            wordlists_with_s[f"creative_scenario_round_{round}"] != "None"
+        ]
         model_dir = model_name.replace("/", "-")
         wordlists_with_s.to_json(
-            f"/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/{output_file}_{model_dir}.json",
-            orient="records"
+            itemGenOutputFile,
+            orient="records",
         )
         print(f"Item gen finished, total items {len(wordlists_with_s)}")
     else:
@@ -715,7 +696,9 @@ if __name__ == "__main__":
                 # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
             }
             tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
-            model = AutoModelForCausalLM.from_pretrained(model_name, load_in_8bit=True, **model_kwargs)
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name, load_in_8bit=True, **model_kwargs
+            )
             pipeline = hf_pipeline(
                 task="text-generation",
                 model=model,
@@ -730,7 +713,7 @@ if __name__ == "__main__":
         print("Model failed to initialize. Please check your API key.")
         exit(-1)
     # scenario generation should be done using the driver script, not from here
-    # if task == "scenario_generation": 
+    # if task == "scenario_generation":
     #     create_scenarios(
     #         parser.prompt_idx,
     #         parser.output_file,
