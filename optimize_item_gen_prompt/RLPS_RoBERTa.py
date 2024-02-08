@@ -141,6 +141,7 @@ def train_model(metric: str):
 
 # use the trained autoscorer to get results on new item responses
 # make sure the prediction metric is the same as the model used to evaluate
+# TODO: This never works past iteration 0
 def evaluate_model(trained_model_dir: str, item_responses: str, prediction_name: str, save_file: str, round: int):
   accelerator = Accelerator()
   np.random.seed(40) # sets a randomization seed for reproducibility
@@ -149,11 +150,13 @@ def evaluate_model(trained_model_dir: str, item_responses: str, prediction_name:
   # item_responses and save_file should point to the same file
   # we load twice so we can save without losing any columns
   d = pd.read_json(item_responses)
+  d.dropna(inplace=True)
   
   save_file = pd.read_json(save_file)
+  save_file.dropna(inplace=True)
   
 
-  d['text'] = d[f'response_round_{round}']
+  d['text'] = d[f'creative_response_round_{round}']
   d_input = d.filter(['text'], axis = 1)
   dataset = Dataset.from_pandas(d_input, preserve_index = False) # Turns pandas data into huggingface/pytorch dataset
 

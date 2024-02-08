@@ -12,6 +12,7 @@ from transformers import (
 )
 from transformers import pipeline as hf_pipeline
 from key import key
+import time
 
 
 from langchain.schema import BaseOutputParser
@@ -22,8 +23,7 @@ from langchain.chat_models import ChatOpenAI
 # from key import key
 from tqdm import tqdm
 from argparse import ArgumentParser
-
-# TODO: start working on few-shot selection optimizer
+from pathlib import Path
 
 
 # class for storing and manipulating prompts
@@ -112,59 +112,127 @@ def test_creative_response(
                 "title": title,
             }
         )
+
     result = CreativityScenarioResponseParser.parse(result)
 
     return result
 
 
 def create_scenario_responses(
-    llm, round, input_file_name: str = None, demographics_file: str = None
+    llm,
+    round,
+    input_file_name: str,
+    demographics_file: str,
+    response_file_name: str,
+    model_name: str,
 ):
     input_file = pd.read_json(input_file_name)
-    if demographics_file is not None:
-        demographics_file = pd.read_csv(demographics_file,index_col=0)
+    response_file = Path(response_file_name)
+
+    if response_file.is_file():
+        ai_responses = pd.read_json(response_file_name)
 
     if demographics_file is not None:
-        input_file[f"response_round_{round}"] = ""
-        input_file[f"ethnicity_round_{round}"] = ""
-        input_file[f"gender_round_{round}"] = ""
-        input_file[f"industry_round_{round}"] = ""
-        input_file[f"title_round_{round}"] = ""
-    else:
-        input_file[f"response_round_{round}"] = ""
-    
+        demographics_file = pd.read_csv(demographics_file, index_col=0)
+
+    if not response_file.is_file():
+        if demographics_file is not None:
+            ai_responses = pd.DataFrame(
+                columns=[
+                    f"creative_response_round_{round}",
+                    "ethnicity",
+                    "gender",
+                    "industry",
+                    "title",
+                ]
+            )
+        else:
+            ai_responses = pd.DataFrame(
+                columns=[
+                    f"creative_scenario_round_{round}",
+                    f"creative_response_round_{round}",
+                ]
+            )
+
     for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
         # generate 30 responses to each scenario
         # we assume demographics want to be included if the file was specified
         # if so, create a "profile" by drawing a random sample from that file
         # do not sample them again twice
         for i in tqdm(range(30)):  # TODO: make this a param
+            if (
+                model_name == "gpt-3.5-turbo"
+                or model_name == "gpt-4"
+                or model_name == "google"
+            ):
+                time.sleep(5)
             if demographics_file is not None:
                 participant = demographics_file.sample(n=1)
-                input_file.at[index, f"ethnicity_round_{round}"] = participant["Q15"].values[0]
-                input_file.at[index, f"gender_round_{round}"] = participant["Q14"].values[0]
-                input_file.at[index, f"industry_round_{round}"] = participant["Q24"].values[0]
-                input_file.at[index, f"title_round_{round}"] = participant["Q23"].values[0]
-                result = test_creative_response(
-                    row[f"creative_scenario_round_{round}"],
-                    1,  # prompt_idx
-                    llm,
-                    participant["Q15"].values[0],  # ethnicity
-                    participant["Q14"].values[0],  # gender
-                    participant["Q24"].values[0],  # industry
-                    participant["Q23"].values[0],  # title
+                # especially for gemini models, the prompt may be blocked due to the safety filters
+                # in those cases, skip and move on
+                try:
+                    result = test_creative_response(
+                        row[f"creative_scenario_round_{round}"],
+                        1,  # prompt_idx
+                        llm,
+                        participant["Q15"].values[0],  # ethnicity
+                        participant["Q14"].values[0],  # gender
+                        participant["Q24"].values[0],  # industry
+                        participant["Q23"].values[0],  # title
+                    )
+                except Exception:
+                    print("Google API failed")
+                    continue
+            else:
+                try:
+                    result = test_creative_response(
+                        row[f"creative_scenario_round_{round}"],
+                        0,  # prompt_idx
+                        llm,
+                    )
+                except Exception:
+                    print("Google API Failed")
+                    continue
+
+            if demographics_file is not None:
+                ai_responses = pd.concat(
+                    [
+                        ai_responses,
+                        pd.DataFrame(
+                            {
+                                f"creative_scenario_round_{round}": row[
+                                    f"creative_scenario_round_{round}"
+                                ],
+                                f"creative_response_round_{round}": result,
+                                "ethnicity": participant["Q15"].values[0],
+                                "gender": participant["Q14"].values[0],
+                                "industry": participant["Q24"].values[0],
+                                "title": participant["Q23"].values[0],
+                            },
+                            index=[0],
+                        ),
+                    ],
+                    ignore_index=True,
                 )
             else:
-                result = test_creative_response(
-                    row[f"creative_scenario_round_{round}"],
-                    0,  # prompt_idx
-                    llm,
+                ai_responses = pd.concat(
+                    [
+                        ai_responses,
+                        pd.DataFrame(
+                            {
+                                f"creative_scenario_round_{round}": row[
+                                    f"creative_scenario_round_{round}"
+                                ],
+                                f"creative_response_round_{round}": result,
+                            },
+                            index=[0],
+                        ),
+                    ],
+                    ignore_index=True,
                 )
-            
-            input_file.at[index, f"response_round_{round}"] = result
 
-    input_file.to_json(
-        input_file_name,
+    ai_responses.to_json(
+        response_file_name,
     )
 
 

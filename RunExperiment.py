@@ -12,14 +12,24 @@ Initially, for simplicity, we will only support CPS.
 All parameters are stored in config.py
 """
 
+import pandas as pd
+import warnings
+
+warnings.filterwarnings(
+    "ignore"
+)  # so we don't have to see the sequential pipeline warning
+
 import ItemGeneration, ItemEvaluation
-import uuid  # used for experiment ids
 from optimize_item_gen_prompt import GenerateCPSResponses, RLPS_RoBERTa
 from config import config
 from key import key
+from gemini_key import gemini_key
 
 # OpenAI
 from langchain.chat_models import ChatOpenAI
+
+# Gemini
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # HF
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
@@ -28,6 +38,30 @@ from transformers import (
     AutoTokenizer,
 )
 from transformers import pipeline as hf_pipeline
+
+
+# select the highest quality items to include in the item gen prompt
+def SelectItemGenShots(
+    itemPool: pd.DataFrame,
+    shotSelectionMetric: str,
+    itemGenNumShots: int,
+    round: int,
+    shotSelectionSort: str,
+):
+    itemPool = pd.read_json(itemPool, orient="records")
+    meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(numeric_only=True)
+    if shotSelectionSort == "max":
+        meanItemScores.sort_values(
+            by=f"{shotSelectionMetric}_round_{round}", ascending=False, inplace=True
+        )
+    elif shotSelectionSort == "min":
+        meanItemScores.sort_values(
+            by=f"{shotSelectionMetric}_round_{round}", ascending=False, inplace=False
+        )
+
+    item_list = meanItemScores.iloc[:itemGenNumShots].index.to_list()
+    return item_list
+
 
 """
 A function to run an AIG trial. Only LLama and OpenAI models should be used.
@@ -62,6 +96,17 @@ def RunExperiment(config: dict):
                     max_tokens=config["itemGenMaxTokens"],
                     model_kwargs=model_kwargs,
                 )
+            elif config["itemGenModelName"] == "google":
+                # gemini doesn't have a frequency or presence penalty
+                llm = ChatGoogleGenerativeAI(
+                    model="gemini-pro",
+                    convert_system_message_to_human=True,
+                    google_api_key=gemini_key,
+                    temperature=config["itemGenTemperature"],
+                    top_p=config["itemGenTopP"],
+                    max_output_tokens=config["itemGenMaxTokens"],
+                    max_retries=1
+                )
             else:
                 model_kwargs = {
                     "top_p": config["itemGenTopP"],
@@ -92,7 +137,7 @@ def RunExperiment(config: dict):
         if i == 0:
             ItemGeneration.create_scenarios(
                 config["itemGenPromptIdx"],
-                config['itemGenOutputFile'],
+                config["itemGenOutputFile"],
                 config["itemGenModelName"],
                 llm,
                 i,  # round
@@ -109,7 +154,7 @@ def RunExperiment(config: dict):
         elif i >= 1:
             ItemGeneration.create_scenarios(
                 config["itemGenPromptIdx"],
-                config['itemGenOutputFile'],
+                config["itemGenOutputFile"],
                 config["itemGenModelName"],
                 llm,
                 i,  # round
@@ -119,9 +164,12 @@ def RunExperiment(config: dict):
                 config["itemGenTemperature"],
                 config["itemGenTopP"],
                 config["itemGenOutputFile"],
-                input_file=config['itemGenOutputFile'],  # TODO: make sure the output file is consistent from the item evaluator, etc
+                input_file=config[
+                    "itemGenOutputFile"
+                ],  # TODO: make sure the output file is consistent from the item evaluator, etc
                 wordlist_file=config["wordlistFile"],
                 num_items_per_prompt=config["numItemsPerList"],
+                item_shots=item_shots,  # The k shots to give to the prompt
             )
         # evaluate items
         if config["useItemEvalModel"]:
@@ -143,9 +191,18 @@ def RunExperiment(config: dict):
                         max_tokens=config["itemEvalMaxTokens"],
                         model_kwargs=model_kwargs,
                     )
-
+                elif config['itemEvalModelName'] == "google":
+                    llm = ChatGoogleGenerativeAI(
+                        model="gemini-pro",
+                        convert_system_message_to_human=True,
+                        google_api_key=gemini_key,
+                        temperature=config["itemEvalTemperature"],
+                        top_p=config["itemEvalTopP"],
+                        max_output_tokens=config["itemEvalMaxTokens"],
+                        max_retries=1
+                    )
                 else:
-                    print("Only OpenAI models are supporting for evaluating items.")
+                    print("Only OpenAI and Google models are supporting for evaluating items.")
 
             except Exception:
                 print("Model failed to initialize. Please check your API key.")
@@ -153,7 +210,7 @@ def RunExperiment(config: dict):
 
             ItemEvaluation.evaluate_scenarios(
                 config["itemEvalPromptIdx"],
-                config['itemEvalOutputFile'],
+                config["itemEvalOutputFile"],
                 config["itemEvalModelName"],
                 llm,
                 i,  # round
@@ -164,7 +221,7 @@ def RunExperiment(config: dict):
                 config["itemEvalPresencePenalty"],
                 config["itemEvalMaxTokens"],
                 config["itemEvalTemperature"],
-                config["itemEvalTopP"]
+                config["itemEvalTopP"],
             )
 
         print("Generating Item Responses")
@@ -185,6 +242,16 @@ def RunExperiment(config: dict):
                     temperature=config["itemResponseGenTemperature"],
                     max_tokens=config["itemResponseGenMaxTokens"],
                     model_kwargs=model_kwargs,
+                )
+            elif config['itemResponseGenModelName'] == 'google':
+                llm = ChatGoogleGenerativeAI(
+                    model="gemini-pro",
+                    convert_system_message_to_human=True,
+                    google_api_key=gemini_key,
+                    temperature=config["itemGenTemperature"],
+                    top_p=config["itemGenTopP"],
+                    max_output_tokens=config["itemGenMaxTokens"],
+                    max_retries=1
                 )
             else:
                 model_kwargs = {
@@ -218,26 +285,41 @@ def RunExperiment(config: dict):
         GenerateCPSResponses.create_scenario_responses(
             llm,
             i,  # round
-            f"{config['itemGenOutputFile']}",
+            config["itemGenOutputFile"],
             config["demographicsFile"],
+            config["itemResponseGenOutputFile"],
+            config["itemResponseGenModelName"]
         )
 
         # evaluate item responses
         if config["useItemEvalModel"]:
             RLPS_RoBERTa.evaluate_model(
                 config["itemResponseOriginalityModelDir"],
-                config['itemEvalOutputFile'],
+                config["itemResponseGenOutputFile"],
                 "originality",
-                config['itemEvalOutputFile'],  # we need to chop off most columns from the first instance, so send another copy to save to
+                config[
+                    "itemResponseGenOutputFile"
+                ],  # we need to chop off most columns from the first instance, so send another copy to save to
                 i,  # round
             )
             RLPS_RoBERTa.evaluate_model(
                 config["itemResponseQualityModelDir"],
-                config['itemEvalOutputFile'],
+                config["itemResponseGenOutputFile"],
                 "quality",
-                config['itemEvalOutputFile'],  # we need to chop off most columns from the first instance, so send another copy to save to
+                config[
+                    "itemResponseGenOutputFile"
+                ],  # we need to chop off most columns from the first instance, so send another copy to save to
                 i,  # round
             )
+
+        item_shots = SelectItemGenShots(
+            config["itemResponseGenOutputFile"],
+            config["shotSelectionMetric"],
+            config["itemGenNumShots"],
+            i,
+            config["shotSelectionSort"],
+        )
+        print(item_shots)
 
 
 RunExperiment(config)

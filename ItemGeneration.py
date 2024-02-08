@@ -6,6 +6,7 @@ import pandas as pd
 
 # OpenAI
 from langchain.chat_models import ChatOpenAI
+from langchain.prompts.chat import _convert_to_message
 
 # HF
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
@@ -329,7 +330,7 @@ class PromptGenerator:
                     1 = Many constraints involving controversial topics
                     2 = Some constraints involving controversial topics
                     3 = No constraints involving controversial topics""",
-                ),
+                ),  # for the k-shot exemplar method, another human message with example scenarios is added here
                 (
                     "human",
                     """Word list:
@@ -398,7 +399,7 @@ class CreativityScenarioItemParser(BaseOutputParser):
         text = re.sub("\n", "", text)
         text = re.sub("\t", "", text)
         readability = Readability(text)
-        if len(word_tokenize(text)) < 150:  # drop scenarios that are too short
+        if len(word_tokenize(text)) < 140:  # drop scenarios that are too short
             print("Scenario too short.")
             text = "None"
         # elif "dilemma" in text:
@@ -415,21 +416,6 @@ class CreativityScenarioItemParser(BaseOutputParser):
             text = split_on_final_question[0] + split_on_final_question[1]
         elif "###" in text:
             text = text.split("###")[0]
-
-        # Sometimes, the LLM will output a list of possible solutions
-        # if it does that, drop the output
-        elif len(re.findall(r"([0-9]{1}\.[a-zA-Z\W]+\?)", text)) != 0:
-            print("LLM output possible solutions.")
-            text = "None"
-
-        # the scenario should start with one of the named characters from the wordlist
-        # check for this and remove all text preceding it
-        if text != "None":
-            text_split_on_word = word_tokenize(text)
-            first_word = text_split_on_word[0]
-            if first_word not in scenario_names:
-                print("Scenario does not begin with character name")
-                text = "None"
 
         return text
 
@@ -461,6 +447,7 @@ def test_creative_problem(
     previous_llm_output=None,
     topic_from_file=None,
     ratings_from_file=False,
+    item_shots: list = None,
 ):
     # when true, will use AI feedback to improve the model outputs
     if (
@@ -471,19 +458,49 @@ def test_creative_problem(
         prompt = PromptGenerator.make_creative_scenario_generation_prompt(
             prompt_idx
         )  # the prompt type
+        human_query = prompt.messages[1].prompt.template
+        prompt.messages.pop()
 
-        # add previous output to the prompt
-        prompt.append(("ai", "{ai_output}"))
-        # add the LLM evaluation to the prompt
-        prompt.append(
+        # I think put them as one message where the human lists some example items
+        # TODO: make sure the items are properly formatted
+        item_shots = _convert_to_message(
             (
                 "human",
-                """
+                "\nHere are some example high quality scenarios from other authors:\n"
+                + "\n###\n".join(item_shots)
+                + f"""\n###\nWord list:
+                    {word_list}
+
+                    Dilemma topic:
+                    {topic_from_file}
+
+                    ###
+
+                    Scenario:""",
+            )
+        )
+        prompt.messages.insert(1, item_shots)
+
+        # add previous output to the prompt
+        # TODO: we really need the wordlist from this scenario included in the prompt
+        prompt.messages.insert(2, _convert_to_message(("ai", "{ai_output}")))
+        # add the LLM evaluation to the prompt
+        prompt.messages.insert(
+            3,
+            _convert_to_message(
+                (
+                    "human",
+                    """
                 Here is some feedback for your scenario on a scale of 1-3:
                 {ai_feedback}
 
-                Please revise your scenario, and try to score a 3 in each category.""",
-            )
+                Please revise your scenario, and try to score a 3 in each category.
+                
+                ###
+                
+                """+ human_query,
+                )
+            ),
         )
         chain = prompt | llm
         result = chain.invoke(
@@ -500,7 +517,6 @@ def test_creative_problem(
         # choose a topic at random to build the scenario
         # these are written manually for now, could try LLM generated in the future
         dilemma_topics = [
-            "secret crush",
             "morality and ethics",
             "greatest fear",
             "greatest dream",
@@ -553,28 +569,50 @@ def create_scenarios(
     input_file: str = None,
     wordlist_file: str = None,
     num_items_per_prompt: int = 1,
+    item_shots: list = None,
 ):
     # when true, will use add new items to an existing file
     if input_file != None and round >= 1:
+        assert item_shots != None
+
         input_file = pd.read_json(input_file)
-        
+
         input_file[f"creative_scenario_round_{round}"] = ""
         for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
-            if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
-                time.sleep(2)
-            scenario_names = row["word_list"].split(",")[::2]
-            scenario_names = [
-                re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
-            ]
-            result = test_creative_problem(
-                row["word_list"],
-                prompt_idx,
-                llm,
-                scenario_names,
-                row[f"creative_scenario_round_{round-1}"],
-                row["topic"],
-                row[f"ratings_round_{round-1}"],
-            )
+            result = "None"
+            for i in range(
+                9
+            ):  # keep on generating scenarios until the model passes all quality control checks
+                if (
+                    model_name == "gpt-4"
+                    or model_name == "gpt-3.5-turbo"
+                    or model_name == "google"
+                ):
+                    time.sleep(4.5)
+                scenario_names = row["word_list"].split(",")[::2]
+                scenario_names = [
+                    re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
+                ]
+                # generation may fail due to google API filters
+                try:
+                    result = test_creative_problem(
+                        row["word_list"],
+                        prompt_idx,
+                        llm,
+                        scenario_names,
+                        row[f"creative_scenario_round_{round-1}"],
+                        row["topic"],
+                        row[f"ratings_round_{round-1}"],
+                        item_shots,
+                    )
+
+                except Exception:
+                    print("Google API failure (probably censored)")
+                    result = "None"
+                    continue
+                if result != "None":
+                    break
+
             input_file.at[index, f"creative_scenario_round_{round}"] = result
 
         # drop rows that failed quality controls
@@ -585,54 +623,60 @@ def create_scenarios(
         input_file = input_file[
             input_file[f"creative_scenario_round_{round}"] != "None"
         ]
-        input_file.to_json(
-            itemGenOutputFile, orient="records"
-        )
+        input_file.to_json(itemGenOutputFile, orient="records")
         print(f"Item gen finished, total items: {len(input_file)}")
     elif input_file == None and round == 0:
         # path for a fresh round of item generation without evalution
-        wordlists = pd.read_csv(
-            wordlist_file,
-            sep="\t"
-        )
+        wordlists = pd.read_csv(wordlist_file, sep="\t")
         wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
         wordlists[f"creative_scenario_round_{round}"] = ""
         wordlists["topic"] = ""
         wordlists_with_s = pd.DataFrame()
         for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
-            # generate 3 scenarios for each wordlist + topic
-            for scenario in range(num_items_per_prompt):
-                if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
-                    time.sleep(2)
+            result = "None"  # keep on generating scenarios until the model passes all quality control checks
+            for i in range(9):
+                if (
+                    model_name == "gpt-4"
+                    or model_name == "gpt-3.5-turbo"
+                    or model_name == "google"
+                ):
+                    time.sleep(4)
                 # grab just the names in the wordlist, need for preprocessing
                 scenario_names = row["word_list"].split(",")[::2]
                 scenario_names = [
                     re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
                 ]
-                result, topic = test_creative_problem(
-                    row["word_list"],
-                    prompt_idx,
-                    llm,
-                    scenario_names,
-                )
-                new_scenario = pd.DataFrame(
-                    {
-                        f"creative_scenario_round_{round}": result,
-                        "item_gen_model_name": model_name,
-                        "topic": topic,
-                        "item_gen_max_tokens": max_tokens,
-                        "item_gen_presence_penalty": presence_penalty,
-                        "item_gen_frequency_penalty": frequency_penalty,
-                        "item_gen_temperature": temperature,
-                        "item_type": row["item_type"],
-                        "item_gen_top_p": top_p,
-                        "word_list": row["word_list"],
-                    },
-                    index=[0],
-                )
-                wordlists_with_s = pd.concat((wordlists_with_s, new_scenario))
+                # generation may fail due to google API filters
+                try:
+                    result, topic = test_creative_problem(
+                        row["word_list"],
+                        prompt_idx,
+                        llm,
+                        scenario_names,
+                    )
+                except Exception:
+                    print("Google API failure (probably censored)")
+                    continue
 
-        
+                if result != "None":
+                    new_scenario = pd.DataFrame(
+                        {
+                            f"creative_scenario_round_{round}": result,
+                            "item_gen_model_name": model_name,
+                            "topic": topic,
+                            "item_gen_max_tokens": max_tokens,
+                            "item_gen_presence_penalty": presence_penalty,
+                            "item_gen_frequency_penalty": frequency_penalty,
+                            "item_gen_temperature": temperature,
+                            "item_type": row["item_type"],
+                            "item_gen_top_p": top_p,
+                            "word_list": row["word_list"],
+                        },
+                        index=[0],
+                    )
+                    wordlists_with_s = pd.concat((wordlists_with_s, new_scenario))
+                    break
+
         # drop rows that failed quality control metrics
         wordlists_with_s.reset_index(drop=True, inplace=True)
         wordlists_with_s = wordlists_with_s[

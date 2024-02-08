@@ -23,11 +23,12 @@ class CreativityScenarioItemEvaluationParser(BaseOutputParser):
     # the output should be formatted as json
     @staticmethod
     def parse(text: str) -> dict:
+        text = text.strip("AI:").strip(" ")
         try:
             js.loads(text)
         except Exception:
             print("Json output failed to load, trying next item...")
-            return None
+            return "None"
 
         return text
 
@@ -208,18 +209,26 @@ def evaluate_scenarios(
     scenarios["item_eval_top_p"] = itemEvalTopP
     scenarios["Evaluator"] = model_name
     for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
-        time.sleep(2)
-        evaluation = test_creative_problem_eval(
-            prompt_idx,
-            row[scenario_col],  # "creative_scenario_round_i"
-            llm,
-        )
-        if evaluation == None:
-            continue    # the model failed a quality control check in the generation
+        time.sleep(4.5)
+        evaluation = 'None'
+        for i in range(3): # retry a maximum of x times
+            try:
+                evaluation = test_creative_problem_eval(
+                    prompt_idx,
+                    row[scenario_col],  # "creative_scenario_round_i"
+                    llm,
+                )
+            except Exception:
+                print("Google API failure")
+                evaluation = "None"
+                continue
+            if evaluation != 'None':
+                break
+            
         scenarios.at[index, f"ratings_round_{round}"] = evaluation
 
     # drop rows that failed quality control metrics
-    scenarios = scenarios[scenarios[f"ratings_round_{round}"] != ""]
+    scenarios = scenarios[scenarios[f"ratings_round_{round}"] != "None"]
     scenarios.to_json(
         itemEvalOutputFile,
     )
