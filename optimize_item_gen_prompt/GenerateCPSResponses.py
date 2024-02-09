@@ -23,7 +23,6 @@ from langchain.chat_models import ChatOpenAI
 # from key import key
 from tqdm import tqdm
 from argparse import ArgumentParser
-from pathlib import Path
 
 
 # class for storing and manipulating prompts
@@ -86,6 +85,12 @@ class CreativityScenarioResponseParser(BaseOutputParser):
         return text
 
 
+# TODO: refactor to parallelize
+# 0. once the sequential code is stable, commit to main
+# 1. change "chain" to "batch", which can invoke a chain on a batch of inputs
+# 2. pass the entire set of items, not just this one
+# 3. put this in a feature branch for parallelization
+# See: https://python.langchain.com/docs/expression_language/interface#batch
 def test_creative_response(
     problem,
     prompt_idx: int,
@@ -127,39 +132,35 @@ def create_scenario_responses(
     model_name: str,
 ):
     input_file = pd.read_json(input_file_name)
-    response_file = Path(response_file_name)
-
-    if response_file.is_file():
-        ai_responses = pd.read_json(response_file_name)
 
     if demographics_file is not None:
         demographics_file = pd.read_csv(demographics_file, index_col=0)
 
-    if not response_file.is_file():
-        if demographics_file is not None:
-            ai_responses = pd.DataFrame(
-                columns=[
-                    f"creative_response_round_{round}",
-                    "ethnicity",
-                    "gender",
-                    "industry",
-                    "title",
-                ]
-            )
-        else:
-            ai_responses = pd.DataFrame(
-                columns=[
-                    f"creative_scenario_round_{round}",
-                    f"creative_response_round_{round}",
-                ]
-            )
+    if demographics_file is not None:
+        ai_responses = pd.DataFrame(
+            columns=[
+                f"creative_scenario_round_{round}",
+                f"creative_response_round_{round}",
+                f"ethnicity",
+                f"gender",
+                f"industry",
+                f"title",
+            ]
+        )
+    else:
+        ai_responses = pd.DataFrame(
+            columns=[
+                f"creative_scenario_round_{round}",
+                f"creative_response_round_{round}",
+            ]
+        )
 
     for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
         # generate 30 responses to each scenario
         # we assume demographics want to be included if the file was specified
         # if so, create a "profile" by drawing a random sample from that file
         # do not sample them again twice
-        for i in tqdm(range(30)):  # TODO: make this a param
+        for i in tqdm(range(2)):  # TODO: make this a param, 3
             if (
                 model_name == "gpt-3.5-turbo"
                 or model_name == "gpt-4"
@@ -204,7 +205,7 @@ def create_scenario_responses(
                                     f"creative_scenario_round_{round}"
                                 ],
                                 f"creative_response_round_{round}": result,
-                                "ethnicity": participant["Q15"].values[0],
+                                f"ethnicity": participant["Q15"].values[0],
                                 "gender": participant["Q14"].values[0],
                                 "industry": participant["Q24"].values[0],
                                 "title": participant["Q23"].values[0],
@@ -231,9 +232,7 @@ def create_scenario_responses(
                     ignore_index=True,
                 )
 
-    ai_responses.to_json(
-        response_file_name,
-    )
+    ai_responses.to_json(f"{response_file_name}_round_{round}.json", orient="records")
 
 
 # test prompt X number of times, and save in df

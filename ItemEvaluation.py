@@ -195,7 +195,7 @@ def evaluate_scenarios(
     itemEvalPresencePenalty: float,
     itemEvalMaxTokens: int,
     itemEvalTemperature: float,
-    itemEvalTopP: float
+    itemEvalTopP: float,
 ):
 
     scenarios = pd.read_json(
@@ -210,8 +210,8 @@ def evaluate_scenarios(
     scenarios["Evaluator"] = model_name
     for index, row in tqdm(scenarios.iterrows(), total=scenarios.shape[0]):
         time.sleep(4.5)
-        evaluation = 'None'
-        for i in range(3): # retry a maximum of x times
+        evaluation = "None"
+        for i in range(3):  # retry a maximum of x times
             try:
                 evaluation = test_creative_problem_eval(
                     prompt_idx,
@@ -222,9 +222,9 @@ def evaluate_scenarios(
                 print("Google API failure")
                 evaluation = "None"
                 continue
-            if evaluation != 'None':
+            if evaluation != "None":
                 break
-            
+
         scenarios.at[index, f"ratings_round_{round}"] = evaluation
 
     # drop rows that failed quality control metrics

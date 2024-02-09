@@ -39,6 +39,8 @@ from transformers import (
 )
 from transformers import pipeline as hf_pipeline
 
+# TODO: model the loading of models outside th
+
 
 # select the highest quality items to include in the item gen prompt
 def SelectItemGenShots(
@@ -48,8 +50,10 @@ def SelectItemGenShots(
     round: int,
     shotSelectionSort: str,
 ):
-    itemPool = pd.read_json(itemPool, orient="records")
-    meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(numeric_only=True)
+    itemPool = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
+    meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(
+        numeric_only=True
+    )
     if shotSelectionSort == "max":
         meanItemScores.sort_values(
             by=f"{shotSelectionMetric}_round_{round}", ascending=False, inplace=True
@@ -105,7 +109,7 @@ def RunExperiment(config: dict):
                     temperature=config["itemGenTemperature"],
                     top_p=config["itemGenTopP"],
                     max_output_tokens=config["itemGenMaxTokens"],
-                    max_retries=1
+                    max_retries=1,
                 )
             else:
                 model_kwargs = {
@@ -191,7 +195,7 @@ def RunExperiment(config: dict):
                         max_tokens=config["itemEvalMaxTokens"],
                         model_kwargs=model_kwargs,
                     )
-                elif config['itemEvalModelName'] == "google":
+                elif config["itemEvalModelName"] == "google":
                     llm = ChatGoogleGenerativeAI(
                         model="gemini-pro",
                         convert_system_message_to_human=True,
@@ -199,10 +203,12 @@ def RunExperiment(config: dict):
                         temperature=config["itemEvalTemperature"],
                         top_p=config["itemEvalTopP"],
                         max_output_tokens=config["itemEvalMaxTokens"],
-                        max_retries=1
+                        max_retries=1,
                     )
                 else:
-                    print("Only OpenAI and Google models are supporting for evaluating items.")
+                    print(
+                        "Only OpenAI and Google models are supporting for evaluating items."
+                    )
 
             except Exception:
                 print("Model failed to initialize. Please check your API key.")
@@ -243,7 +249,7 @@ def RunExperiment(config: dict):
                     max_tokens=config["itemResponseGenMaxTokens"],
                     model_kwargs=model_kwargs,
                 )
-            elif config['itemResponseGenModelName'] == 'google':
+            elif config["itemResponseGenModelName"] == "google":
                 llm = ChatGoogleGenerativeAI(
                     model="gemini-pro",
                     convert_system_message_to_human=True,
@@ -251,7 +257,7 @@ def RunExperiment(config: dict):
                     temperature=config["itemGenTemperature"],
                     top_p=config["itemGenTopP"],
                     max_output_tokens=config["itemGenMaxTokens"],
-                    max_retries=1
+                    max_retries=1,
                 )
             else:
                 model_kwargs = {
@@ -288,7 +294,7 @@ def RunExperiment(config: dict):
             config["itemGenOutputFile"],
             config["demographicsFile"],
             config["itemResponseGenOutputFile"],
-            config["itemResponseGenModelName"]
+            config["itemResponseGenModelName"],
         )
 
         # evaluate item responses
