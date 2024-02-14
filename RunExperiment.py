@@ -12,8 +12,12 @@ Initially, for simplicity, we will only support CPS.
 All parameters are stored in config.py
 """
 
+# TODO: save a copy of the config in the same directory with the rest of the results, at the end
+
 import pandas as pd
+import numpy as np
 import warnings
+import transformers
 
 warnings.filterwarnings(
     "ignore"
@@ -78,7 +82,8 @@ Parameters:
 
 
 def RunExperiment(config: dict):
-    # TODO (MAYBE): log metrics to wandb!
+    np.random.seed(config["random_seed"])  # sets a randomization seed for reproducibility
+    transformers.set_seed(config["random_seed"])
     for i in range(config["numIter"]):
         print(f"Starting iteration {i} of experiment")
         print("Generating items")
@@ -206,10 +211,28 @@ def RunExperiment(config: dict):
                         max_retries=1,
                     )
                 else:
-                    print(
-                        "Only OpenAI and Google models are supporting for evaluating items."
+                    model_kwargs = {
+                    "top_p": config["itemEvalTopP"],
+                    "temperature": config["itemEvalTemperature"],
+                    "device_map": "auto",
+                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                    }
+                    tokenizer = AutoTokenizer.from_pretrained(
+                        config["itemEvalModelName"], **model_kwargs
                     )
-
+                    model = AutoModelForCausalLM.from_pretrained(
+                        config["itemEvalModelName"], load_in_8bit=True, **model_kwargs
+                    )
+                    pipeline = hf_pipeline(
+                        task="text-generation",
+                        model=model,
+                        tokenizer=tokenizer,
+                        batch_size=1,
+                        max_new_tokens=config["itemEvalMaxTokens"],
+                        model_kwargs=model_kwargs,
+                    )
+                    llm = HuggingFacePipeline(pipeline=pipeline)
+                    
             except Exception:
                 print("Model failed to initialize. Please check your API key.")
                 exit(-1)
