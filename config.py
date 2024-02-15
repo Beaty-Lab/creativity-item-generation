@@ -1,11 +1,10 @@
-# TODO: add experiment config as a dictionary
-#         itemResponseEvalModelDir: str, # TODO: is this needed?
 config = {
-    "random_seed": 999,
-    "numIter": 4,
-    "itemGenModelName": "meta-llama/Llama-2-70b-chat-hf",
-    "useItemEvalModel": True,
-    "itemEvalModelName": "google",
+    "random_seed": 777,
+    "numIter": 3,
+    "itemGenModelName": "meta-llama/Llama-2-13b-chat-hf",
+    "useItemEvalModel": False,
+    "useItemResponseEvalModel": True,
+    "itemEvalModelName": "meta-llama/Llama-2-13b-chat-hf",
     "itemResponseGenModelName": "meta-llama/Llama-2-7b-chat-hf",
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
@@ -27,10 +26,11 @@ config = {
     "itemResponseGenMaxTokens": 400,
     "wordlistFile": "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",
     "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/DemographicData.csv",
-    "itemGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_13b_item_gen_llama_13b_eval/items.json",
-    "itemEvalOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_13b_item_gen_llama_13b_eval/items.json",
-    "itemResponseGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_13b_item_gen_llama_13b_eval/item_responses", # should NOT be the same as the top 2
+    "itemGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_13b_item_gen_llama_13b_eval_seed_777/items.json",
+    "itemEvalOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_13b_item_gen_llama_13b_eval_seed_777/items.json",
+    "itemResponseGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_13b_item_gen_llama_13b_eval_seed_777/item_responses", # should NOT be the same as the top 2
     "numItemsPerList": 3, # TODO: no longer used
+    "numItemGenerationAttempts": 18,
     "itemResponseOriginalityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
     "itemResponseQualityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
     "shotSelectionMetric": "originality", # the metric used to select which items lead to consistently good responses
