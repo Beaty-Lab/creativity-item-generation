@@ -12,12 +12,14 @@ Initially, for simplicity, we will only support CPS.
 All parameters are stored in config.py
 """
 
-# TODO: save a copy of the config in the same directory with the rest of the results, at the end
-
 import pandas as pd
+import hf_olmo
 import numpy as np
 import warnings
 import transformers
+import json
+from pathlib import Path
+from os.path import join
 
 warnings.filterwarnings(
     "ignore"
@@ -42,8 +44,6 @@ from transformers import (
     AutoTokenizer,
 )
 from transformers import pipeline as hf_pipeline
-
-# TODO: model the loading of models outside th
 
 
 # select the highest quality items to include in the item gen prompt
@@ -82,8 +82,15 @@ Parameters:
 
 
 def RunExperiment(config: dict):
-    np.random.seed(config["random_seed"])  # sets a randomization seed for reproducibility
+    np.random.seed(
+        config["random_seed"]
+    )  # sets a randomization seed for reproducibility
     transformers.set_seed(config["random_seed"])
+    # save the config file
+    config_path = Path(config["itemGenOutputFile"]).parent.absolute()
+    with open(join(config_path, "config.json"), "w+") as cf:
+        json.dump(config, cf)
+
     for i in range(config["numIter"]):
         print(f"Starting iteration {i} of experiment")
         print("Generating items")
@@ -127,7 +134,7 @@ def RunExperiment(config: dict):
                     config["itemGenModelName"], **model_kwargs
                 )
                 model = AutoModelForCausalLM.from_pretrained(
-                    config["itemGenModelName"], load_in_8bit=True, **model_kwargs
+                    config["itemGenModelName"], load_in_4bit=True, **model_kwargs
                 )
                 pipeline = hf_pipeline(
                     task="text-generation",
@@ -139,8 +146,8 @@ def RunExperiment(config: dict):
                 )
                 llm = HuggingFacePipeline(pipeline=pipeline)
 
-        except Exception:
-            print("Model failed to initialize. Please check your API key.")
+        except Exception as e:
+            print(e)
             exit(-1)
 
         if i == 0:
@@ -156,6 +163,7 @@ def RunExperiment(config: dict):
                 config["itemGenTemperature"],
                 config["itemGenTopP"],
                 config["itemGenOutputFile"],
+                config["numItemGenerationAttempts"],
                 input_file=None,
                 wordlist_file=config["wordlistFile"],
                 num_items_per_prompt=config["numItemsPerList"],
@@ -173,6 +181,7 @@ def RunExperiment(config: dict):
                 config["itemGenTemperature"],
                 config["itemGenTopP"],
                 config["itemGenOutputFile"],
+                config["numItemGenerationAttempts"],
                 input_file=config[
                     "itemGenOutputFile"
                 ],  # TODO: make sure the output file is consistent from the item evaluator, etc
@@ -212,16 +221,16 @@ def RunExperiment(config: dict):
                     )
                 else:
                     model_kwargs = {
-                    "top_p": config["itemEvalTopP"],
-                    "temperature": config["itemEvalTemperature"],
-                    "device_map": "auto",
-                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                        "top_p": config["itemEvalTopP"],
+                        "temperature": config["itemEvalTemperature"],
+                        "device_map": "auto",
+                        # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
                     }
                     tokenizer = AutoTokenizer.from_pretrained(
                         config["itemEvalModelName"], **model_kwargs
                     )
                     model = AutoModelForCausalLM.from_pretrained(
-                        config["itemEvalModelName"], load_in_8bit=True, **model_kwargs
+                        config["itemEvalModelName"], load_in_4bit=True, **model_kwargs
                     )
                     pipeline = hf_pipeline(
                         task="text-generation",
@@ -232,9 +241,9 @@ def RunExperiment(config: dict):
                         model_kwargs=model_kwargs,
                     )
                     llm = HuggingFacePipeline(pipeline=pipeline)
-                    
-            except Exception:
-                print("Model failed to initialize. Please check your API key.")
+
+            except Exception as e:
+                print(e)
                 exit(-1)
 
             ItemEvaluation.evaluate_scenarios(
@@ -294,7 +303,7 @@ def RunExperiment(config: dict):
                 )
                 model = AutoModelForCausalLM.from_pretrained(
                     config["itemResponseGenModelName"],
-                    load_in_8bit=True,
+                    load_in_4bit=True,
                     **model_kwargs,
                 )
                 pipeline = hf_pipeline(
@@ -306,8 +315,8 @@ def RunExperiment(config: dict):
                     model_kwargs=model_kwargs,
                 )
                 llm = HuggingFacePipeline(pipeline=pipeline)
-        except Exception:
-            print("Model failed to initialize. Please check your API key.")
+        except Exception as e:
+            print(e)
             exit(-1)
 
         # TODO: whether or not item eval was used should be check to make sure the correct file is updated.
@@ -321,7 +330,7 @@ def RunExperiment(config: dict):
         )
 
         # evaluate item responses
-        if config["useItemEvalModel"]:
+        if config["useItemResponseEvalModel"]:
             RLPS_RoBERTa.evaluate_model(
                 config["itemResponseOriginalityModelDir"],
                 config["itemResponseGenOutputFile"],
@@ -341,14 +350,13 @@ def RunExperiment(config: dict):
                 i,  # round
             )
 
-        item_shots = SelectItemGenShots(
-            config["itemResponseGenOutputFile"],
-            config["shotSelectionMetric"],
-            config["itemGenNumShots"],
-            i,
-            config["shotSelectionSort"],
-        )
-        print(item_shots)
+            item_shots = SelectItemGenShots(
+                config["itemResponseGenOutputFile"],
+                config["shotSelectionMetric"],
+                config["itemGenNumShots"],
+                i,
+                config["shotSelectionSort"],
+            )
 
 
 RunExperiment(config)
