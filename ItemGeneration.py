@@ -17,14 +17,15 @@ from transformers import (
 from transformers import pipeline as hf_pipeline
 
 
-from langchain.schema import BaseOutputParser
+from langchain.schema import BaseOutputParser, StrOutputParser, OutputParserException
+from langchain_core.runnables import RunnableLambda, RunnableParallel
+from langchain.output_parsers import RetryOutputParser
 from langchain.prompts.chat import ChatPromptTemplate
 
 # API key stored in key.py, and should NOT be committed
 from key import key
 from tqdm import tqdm
 from readability import Readability
-from random import randint
 from argparse import ArgumentParser
 from nltk import word_tokenize
 
@@ -73,7 +74,7 @@ class PromptGenerator:
     def make_creative_scenario_generation_prompt(scendario_prompt_idx: int):
         scenario_base_prompts = item_gen_prompts
         creative_scenario_generation_prompt = ChatPromptTemplate.from_messages(
-            scenario_base_prompts[scendario_prompt_idx]
+            scenario_base_prompts[scendario_prompt_idx],
         )
         return creative_scenario_generation_prompt
 
@@ -115,12 +116,7 @@ class CreativityScenarioItemParser(BaseOutputParser):
     # TODO: is it possible for the user to specify some of the output formatitng, like the forbidden strings?
     # Add this to config file
     @staticmethod
-    def parse(text: str, scenario_names) -> dict:
-        try:
-            text = text.content
-            assert type(text) == str
-        except Exception:
-            pass
+    def parse(text: str) -> dict:
 
         forbidden_strings = [
             "On the one hand",
@@ -136,16 +132,17 @@ class CreativityScenarioItemParser(BaseOutputParser):
 
         if text is None:
             print("Empty string generated.")
-            text = "None"
-            return text
+            raise OutputParserException("Empty string generated.")
+            # text = "None
+            return text  # , "Empty string generated."
 
         # remove all text after stop sequence
         if "I am finished with this scenario." not in text:
             print("Termination string not found.")
-            text = "None"
-            return text
+            raise OutputParserException("Termination string not found.")
+            # text = "None"
+            return text  # , "Termination string not found. Your scenario should end with 'I am finished with this scenario.'"
         else:
-            print(text)
             head, sep, tail = text.partition("I am finished with this scenario.")
             text = head
 
@@ -153,24 +150,26 @@ class CreativityScenarioItemParser(BaseOutputParser):
         for f in forbidden_strings:
             if f in text:
                 print("Scenario contains forbidden string.")
-                text = None
-                return text
+                raise OutputParserException("Scenario contains forbidden string.")
+                return text  # , f"Scenario contains forbidden string: {f}"
 
         readability = Readability(text)
         if len(word_tokenize(text)) < 140:  # drop scenarios that are too short
             print("Scenario too short.")
-            text = "None"
-        # elif "dilemma" in text:
-        #     print("Scenario contains a forbidden keyword.")
-        #     text = "None"
+            raise OutputParserException("Scenario too short.")
+            # text = "None"
+            return text  # , "Scenario is too short, please make it longer"
+
         elif (
             readability.flesch().score < 45
         ):  # based on some initial feedback on the results
             print("Scenario too difficult to read.")
-            text = "None"
+            raise OutputParserException("Scenario too difficult to read.")
+            # text = "None"
+            return text  # , "Scenario is too difficult to read, please simplify"
 
         text = text.strip("\n").strip(" ")
-        return text
+        return text  # , "OK"
 
 
 # test the chain
@@ -202,10 +201,10 @@ def test_creative_problem(
     ratings_from_file=None,
     item_shots: list = None,
 ):
+    parser = CreativityScenarioItemParser()
+    retry_parser = RetryOutputParser.from_llm(parser=parser, llm=llm, max_retries=5)
     # when true, will use AI feedback to improve the model outputs
-    if (
-        previous_llm_output is not None
-    ):
+    if previous_llm_output is not None:
         prompt = PromptGenerator.make_creative_scenario_generation_prompt(
             prompt_idx
         )  # the prompt type
@@ -214,8 +213,6 @@ def test_creative_problem(
 
         # I think put them as one message where the human lists some example items
         # TODO: make sure the items are properly formatted
-        # Dilemma topic:
-        # {topic_from_file}
         item_shots = _convert_to_message(
             (
                 "human",
@@ -254,44 +251,45 @@ def test_creative_problem(
                     )
                 ),
             )
-        chain = prompt | llm
-        result = chain.invoke(
-            {
-                "word_list": word_list,
-                # "topic": topic_from_file,
-                "ai_output": previous_llm_output,
-                "ai_feedback": ratings_from_file,
-            }
-        )
-        result = CreativityScenarioItemParser.parse(result, scenario_names)
-        print(result)
+        completion_chain = (
+            prompt | llm | StrOutputParser() | parser
+        )  # StrOutputParser grabs the content field from chat models
+        validation_chain = RunnableParallel(
+            completion=completion_chain, prompt_value=prompt
+        ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+        
+        try:
+            result = validation_chain.invoke(
+                {
+                    "word_list": word_list,
+                    "ai_output": previous_llm_output,
+                    "ai_feedback": ratings_from_file,
+                }
+            )
+        except OutputParserException:
+            result = "None"
+
         return result
     else:
-        # choose a topic at random to build the scenario
-        # these are written manually for now, could try LLM generated in the future
-        # dilemma_topics = [
-        #     "morality and ethics",
-        #     "greatest dream",
-        #     "friendship versus work",
-        #     "multiple competing demands",
-        #     "family versus career",
-        #     "parental challenges",
-        #     "moving to a new town",
-        #     "traveling overseas",
-        #     "tradition versus personal goals",
-        # ]
         prompt = PromptGenerator.make_creative_scenario_generation_prompt(
             prompt_idx
         )  # the prompt type
-        # topic = dilemma_topics[randint(0, len(dilemma_topics) - 1)]
 
-        chain = prompt | llm
-        # result = chain.invoke({"word_list": word_list, "topic": topic})
-        result = chain.invoke({"word_list": word_list})
-        result = CreativityScenarioItemParser.parse(result, scenario_names)
-        print(result)
+        completion_chain = (
+            prompt | llm | StrOutputParser() | parser
+        )  # StrOutputParser grabs the content field from chat models
+
+        # We try to regenerate a few times if the LLM fails validation
+        # Should we be unable to fix the scenario, we return "None", these get dropped later
+        validation_chain = RunnableParallel(
+            completion=completion_chain, prompt_value=prompt
+        ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+
+        try:
+            result = validation_chain.invoke({"word_list": word_list})
+        except OutputParserException:
+            result = "None"
         return result
-        # return result, topic
 
 
 # cookbooks for item gen
@@ -313,7 +311,7 @@ def create_wordlists(prompt_idx: int, output_file: str, llm):
 
 def create_scenarios(
     prompt_idx: int,
-    output_file: str, # TODO: redundant
+    output_file: str,  # TODO: redundant
     model_name: str,
     llm,
     round,
@@ -407,17 +405,17 @@ def create_scenarios(
                     re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
                 ]
                 # generation may fail due to google API filters
-                try:
-                    # result, topic = test_creative_problem(
-                    result = test_creative_problem(
-                        row["word_list"],
-                        prompt_idx,
-                        llm,
-                        scenario_names,
-                    )
-                except Exception:
-                    print("Google API failure (probably censored)")
-                    continue
+                # try:
+                # result, topic = test_creative_problem(
+                result = test_creative_problem(
+                    row["word_list"],
+                    prompt_idx,
+                    llm,
+                    scenario_names,
+                )
+                # except Exception:
+                #     print("Google API failure (probably censored)")
+                #     continue
 
                 if result != "None":
                     new_scenario = pd.DataFrame(
