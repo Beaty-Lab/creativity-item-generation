@@ -18,23 +18,23 @@ from accelerate import Accelerator
 import time
 import transformers
 from argparse import ArgumentParser
+from peft import LoraConfig, TaskType, get_peft_model
 
 
 # Replicate Simones Auto Scorer
-def train_model(metric: str):
-    # set the wandb project where this run will be logged
-    os.environ["WANDB_PROJECT"] = "creativity-item-generation"
+def train_model():
+    run = wandb.init(project="retrain-scoring-model")
+    os.environ["WANDB_WATCH"]="true"
 
-    # save your trained model checkpoint to wandb
-    os.environ["WANDB_LOG_MODEL"] = "true"
     # for distributed training
     accelerator = Accelerator()
+    # TODO: put these params in wandb
+    peft_config = LoraConfig(peft_type=TaskType.SEQ_CLS, inference_mode=False, r=wandb.config.lora_r, lora_alpha=wandb.config.lora_alpha, lora_dropout=wandb.config.lora_dropout)
 
     d = pd.read_csv(
         "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSfinalMeanScore.csv"
     )
 
-    model_name = "roberta-base"  # a multilingual transformer model
     # prefix = "A creative solution for the situation: " # we'll use prefix/conn to construct inputs to the model
     # suffix = "is: " # we'll use prefix/conn to construct inputs to the model
 
@@ -43,12 +43,12 @@ def train_model(metric: str):
     transformers.set_seed(40)
 
     # SET UP DATASET
-    d["inputs"] = d["Solutions"]
+    d["inputs"] = d["SolutionsWithProblem"]
     d["text"] = d["inputs"]
 
-    if metric == "originality":
+    if wandb.config.metric == "originality":
         d["label"] = d["FacScoresO"]
-    elif metric == "quality":
+    elif wandb.config.metric == "quality":
         d["label"] = d["FacScoresQ"]
 
     d_input = d.filter(["text", "label", "set"], axis=1)
@@ -73,10 +73,13 @@ def train_model(metric: str):
 
     # SET UP MODEL & TOKENIZER
     model = AutoModelForSequenceClassification.from_pretrained(
-        model_name, num_labels=1
-    )  # TONS of settings in the model call, but labels = 1
+        wandb.config.model_name, num_labels=1
+    )  # labels = 1 is for regression
+
+    model = get_peft_model(model, peft_config)
+
     tokenizer = AutoTokenizer.from_pretrained(
-        model_name
+        wandb.config.model_name
     )  # ...some settings in the tokenizer call
 
     #  DEFINE WRAPPER TOKENIZER FUNCTION (FOR BATCH TRAINING)
@@ -99,17 +102,14 @@ def train_model(metric: str):
     training_args = TrainingArguments(
         output_dir="/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model",
         report_to="wandb",
-        learning_rate=0.00005,
-        num_train_epochs=116,
-        per_device_train_batch_size=16,
-        per_device_eval_batch_size=16,
+        learning_rate=wandb.config.learning_rate,
+        num_train_epochs=wandb.config.epochs,
+        per_device_train_batch_size=wandb.config.batch_size,
+        per_device_eval_batch_size=wandb.config.batch_size,
         disable_tqdm=False,
         load_best_model_at_end=False,
-        save_strategy="steps",
-        evaluation_strategy="steps",
-        eval_steps=5500,
-        save_steps=5500,
-        fp16=True,
+        save_strategy="epoch",
+        evaluation_strategy="epoch",
         save_total_limit=1,
     )
 
@@ -118,7 +118,7 @@ def train_model(metric: str):
             model=model,
             args=training_args,
             train_dataset=tokenized_datasets["train"],
-            eval_dataset=tokenized_datasets["test"],
+            eval_dataset=tokenized_datasets["heldout"],
             compute_metrics=compute_metrics,
             tokenizer=tokenizer,
         )
@@ -126,41 +126,12 @@ def train_model(metric: str):
 
     result = trainer.train()
     trainer.evaluate()
-    wandb.finish()
-
-    # EVALUATION
-
-    prediction = trainer.predict(tokenized_datasets["test"])
-    train_prediction = trainer.predict(tokenized_datasets["train"])
-    heldout_prediction = trainer.predict(tokenized_datasets["heldout"])
-
-    test_data = {
-        "text": tokenized_datasets["test"]["text"],
-        "label": tokenized_datasets["test"]["label"],
-        "prediction": np.squeeze(prediction.predictions),
-    }
-    train_data = {
-        "text": tokenized_datasets["train"]["text"],
-        "label": tokenized_datasets["train"]["label"],
-        "prediction": np.squeeze(train_prediction.predictions),
-    }
-    heldout_data = {
-        "text": tokenized_datasets["heldout"]["text"],
-        "label": tokenized_datasets["heldout"]["label"],
-        "prediction": np.squeeze(heldout_prediction.predictions),
-    }
-
-    dataset_test_df = pd.DataFrame(test_data)
-    dataset_train_df = pd.DataFrame(train_data)
-    dataset_heldout_df = pd.DataFrame(heldout_data)
-
-    dataset_train_df.to_csv("./scoring_model/PredictedTrainSet.csv")
-    dataset_heldout_df.to_csv("./scoring_model/PredictedHeldoutSet.csv")
+    # wandb.finish()
 
 
 # use the trained autoscorer to get results on new item responses
 # make sure the prediction metric is the same as the model used to evaluate
-# TODO: This never works past iteration 0
+# TODO: update with peft
 def evaluate_model(
     trained_model_dir: str,
     item_responses: str,
@@ -175,10 +146,10 @@ def evaluate_model(
     # item_responses and save_file should point to the same file
     # we load twice so we can save without losing any columns
     d = pd.read_json(f"{item_responses}_round_{round}.json")
-    d.dropna(inplace=True)
+    # d.dropna(inplace=True)
 
     save_file = pd.read_json(f"{save_file}_round_{round}.json")
-    save_file.dropna(inplace=True)
+    # save_file.dropna(inplace=True)
 
     d["text"] = d[f"creative_response_round_{round}"]
     d_input = d.filter(["text"], axis=1)
@@ -243,18 +214,32 @@ def evaluate_model(
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--task", type=str)
-    parser.add_argument("--trained_model_dir", type=str)
-    parser.add_argument("--item_responses", type=str)
-    parser.add_argument("--metric", type=str)
-    parser.add_argument("--prediction", type=str)
-    parser = parser.parse_args()
-    if parser.task == "train":
-        train_model(parser.metric)
-    elif parser.task == "evaluate":
-        evaluate_model(
-            parser.trained_model_dir, parser.item_responses, parser.prediction
-        )
-    else:
-        print("A task needs to be specified!")
+    config= {
+        "parameters": {
+            "model_name": {"values":["roberta-base"]},
+            "epochs": {"values": [25, 50, 75, 100, 125]},
+            "lr": {"max": 0.1, "min": 0.00001},
+            "batch_size": {"values": [8, 16, 32]},
+            "lora_r": {"values": [8]},
+            "lora_alpha": {"values": [32]},
+            "lora_dropout": {"values": [0.1]},
+            "metric": {"values": "originality"},
+        }
+    }
+    sweep_id = wandb.sweep(sweep=config, project="retrain-scoring-model")
+    wandb.agent(sweep_id, function=train_model, count=10)
+
+    # parser = ArgumentParser()
+    # parser.add_argument("--task", type=str)
+    # parser.add_argument("--trained_model_dir", type=str)
+    # parser.add_argument("--item_responses", type=str)
+    # parser.add_argument("--prediction", type=str)
+    # parser = parser.parse_args()
+    # if parser.task == "train":
+    #     train_model()
+    # elif parser.task == "evaluate":
+    #     evaluate_model(
+    #         parser.trained_model_dir, parser.item_responses, parser.prediction
+    #     )
+    # else:
+    #     print("A task needs to be specified!")
