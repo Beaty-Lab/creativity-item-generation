@@ -13,7 +13,6 @@ All parameters are stored in config.py
 """
 
 import pandas as pd
-import hf_olmo
 import numpy as np
 import warnings
 import transformers
@@ -81,6 +80,7 @@ Parameters:
 """
 
 
+# TODO The `load_in_4bit` and `load_in_8bit` arguments are deprecated and will be removed in the future versions. Please, pass a `BitsAndBytesConfig` object in `quantization_config` argument instead.
 def RunExperiment(config: dict):
     np.random.seed(
         config["random_seed"]
@@ -134,7 +134,10 @@ def RunExperiment(config: dict):
                     config["itemGenModelName"], **model_kwargs
                 )
                 model = AutoModelForCausalLM.from_pretrained(
-                    config["itemGenModelName"], load_in_4bit=True, **model_kwargs
+                    config["itemGenModelName"],
+                    load_in_4bit=True,
+                    attn_implementation="flash_attention_2",
+                    **model_kwargs,
                 )
                 pipeline = hf_pipeline(
                     task="text-generation",
