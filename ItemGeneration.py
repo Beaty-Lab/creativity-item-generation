@@ -115,8 +115,9 @@ class CreativeWordlistItemParser(BaseOutputParser):
 class CreativityScenarioItemParser(BaseOutputParser):
     # TODO: is it possible for the user to specify some of the output formatitng, like the forbidden strings?
     # Add this to config file
+    # TODO: can we pass the parsing exception into the retry parser, add it to the retry prompt?
     @staticmethod
-    def parse(text: str) -> dict:
+    def parse(text: str) -> str:
 
         forbidden_strings = [
             "On the one hand",
@@ -133,15 +134,11 @@ class CreativityScenarioItemParser(BaseOutputParser):
         if text is None:
             print("Empty string generated.")
             raise OutputParserException("Empty string generated.")
-            # text = "None
-            return text  # , "Empty string generated."
 
         # remove all text after stop sequence
         if "I am finished with this scenario." not in text:
             print("Termination string not found.")
             raise OutputParserException("Termination string not found.")
-            # text = "None"
-            return text  # , "Termination string not found. Your scenario should end with 'I am finished with this scenario.'"
         else:
             head, sep, tail = text.partition("I am finished with this scenario.")
             text = head
@@ -151,25 +148,24 @@ class CreativityScenarioItemParser(BaseOutputParser):
             if f in text:
                 print("Scenario contains forbidden string.")
                 raise OutputParserException("Scenario contains forbidden string.")
-                return text  # , f"Scenario contains forbidden string: {f}"
 
         readability = Readability(text)
         if len(word_tokenize(text)) < 140:  # drop scenarios that are too short
             print("Scenario too short.")
             raise OutputParserException("Scenario too short.")
-            # text = "None"
-            return text  # , "Scenario is too short, please make it longer"
 
         elif (
             readability.flesch().score < 45
         ):  # based on some initial feedback on the results
             print("Scenario too difficult to read.")
             raise OutputParserException("Scenario too difficult to read.")
-            # text = "None"
-            return text  # , "Scenario is too difficult to read, please simplify"
 
         text = text.strip("\n").strip(" ")
         return text  # , "OK"
+
+    @staticmethod
+    def get_format_instructions() -> str:
+        return "Respond in no more than 1 paragraph."
 
 
 # test the chain
@@ -200,9 +196,12 @@ def test_creative_problem(
     topic_from_file=None,
     ratings_from_file=None,
     item_shots: list = None,
+    numAttempts: int = 1,
 ):
     parser = CreativityScenarioItemParser()
-    retry_parser = RetryOutputParser.from_llm(parser=parser, llm=llm, max_retries=5)
+    retry_parser = RetryOutputParser.from_llm(
+        parser=parser, llm=llm, max_retries=numAttempts
+    )
     # when true, will use AI feedback to improve the model outputs
     if previous_llm_output is not None:
         prompt = PromptGenerator.make_creative_scenario_generation_prompt(
@@ -252,22 +251,19 @@ def test_creative_problem(
                 ),
             )
         completion_chain = (
-            prompt | llm | StrOutputParser() | parser
+            prompt | llm | StrOutputParser()
         )  # StrOutputParser grabs the content field from chat models
         validation_chain = RunnableParallel(
             completion=completion_chain, prompt_value=prompt
         ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
-        
-        try:
-            result = validation_chain.invoke(
-                {
-                    "word_list": word_list,
-                    "ai_output": previous_llm_output,
-                    "ai_feedback": ratings_from_file,
-                }
-            )
-        except OutputParserException:
-            result = "None"
+
+        result = validation_chain.invoke(
+            {
+                "word_list": word_list,
+                "ai_output": previous_llm_output,
+                "ai_feedback": ratings_from_file,
+            }
+        )
 
         return result
     else:
@@ -275,9 +271,8 @@ def test_creative_problem(
             prompt_idx
         )  # the prompt type
 
-        completion_chain = (
-            prompt | llm | StrOutputParser() | parser
-        )  # StrOutputParser grabs the content field from chat models
+        # StrOutputParser grabs the content field from chat models
+        completion_chain = prompt | llm | StrOutputParser()
 
         # We try to regenerate a few times if the LLM fails validation
         # Should we be unable to fix the scenario, we return "None", these get dropped later
@@ -285,10 +280,7 @@ def test_creative_problem(
             completion=completion_chain, prompt_value=prompt
         ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
 
-        try:
-            result = validation_chain.invoke({"word_list": word_list})
-        except OutputParserException:
-            result = "None"
+        result = validation_chain.invoke({"word_list": word_list})
         return result
 
 
@@ -338,37 +330,33 @@ def create_scenarios(
         input_file[f"creative_scenario_round_{round}"] = ""
         for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
             result = "None"
-            for i in range(
-                numItemGenerationAttempts
-            ):  # keep on generating scenarios until the model passes all quality control checks
-                if (
-                    model_name == "gpt-4"
-                    or model_name == "gpt-3.5-turbo"
-                    or model_name == "google"
-                ):
-                    time.sleep(4.5)
-                scenario_names = row["word_list"].split(",")[::2]
-                scenario_names = [
-                    re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
-                ]
-                # generation may fail due to google API filters
-                try:
-                    result = test_creative_problem(
-                        row["word_list"],
-                        prompt_idx,
-                        llm,
-                        scenario_names,
-                        row[f"creative_scenario_round_{round-1}"],
-                        ratings_from_file=row[f"ratings_round_{round-1}"],
-                        item_shots=item_shots,
-                    )
+            if (
+                model_name == "gpt-4"
+                or model_name == "gpt-3.5-turbo"
+                or model_name == "google"
+            ):
+                time.sleep(4.5)
+            scenario_names = row["word_list"].split(",")[::2]
+            scenario_names = [
+                re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
+            ]
+            # generation may fail due to google API filters
+            try:
+                result = test_creative_problem(
+                    row["word_list"],
+                    prompt_idx,
+                    llm,
+                    scenario_names,
+                    row[f"creative_scenario_round_{round-1}"],
+                    ratings_from_file=row[f"ratings_round_{round-1}"],
+                    item_shots=item_shots,
+                    numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
+                )
 
-                except Exception as e:
-                    print(e)
-                    result = "None"
-                    continue
-                if result != "None":
-                    break
+            except Exception as e:
+                print(e)
+                result = "None"
+                continue
 
             input_file.at[index, f"creative_scenario_round_{round}"] = result
 
@@ -388,54 +376,50 @@ def create_scenarios(
         wordlists = pd.read_csv(wordlist_file, sep="\t")
         wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
         wordlists[f"creative_scenario_round_{round}"] = ""
-        # wordlists["topic"] = ""
         wordlists_with_s = pd.DataFrame()
         for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
             result = "None"  # keep on generating scenarios until the model passes all quality control checks
-            for i in range(18):
-                if (
-                    model_name == "gpt-4"
-                    or model_name == "gpt-3.5-turbo"
-                    or model_name == "google"
-                ):
-                    time.sleep(4)
-                # grab just the names in the wordlist, need for preprocessing
-                scenario_names = row["word_list"].split(",")[::2]
-                scenario_names = [
-                    re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
-                ]
-                # generation may fail due to google API filters
-                # try:
-                # result, topic = test_creative_problem(
+            if (
+                model_name == "gpt-4"
+                or model_name == "gpt-3.5-turbo"
+                or model_name == "google"
+            ):
+                time.sleep(4)
+            # grab just the names in the wordlist, need for preprocessing
+            scenario_names = row["word_list"].split(",")[::2]
+            scenario_names = [
+                re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
+            ]
+            # generation may fail due to google API filters
+            try:
                 result = test_creative_problem(
                     row["word_list"],
                     prompt_idx,
                     llm,
                     scenario_names,
+                    numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
                 )
-                # except Exception:
-                #     print("Google API failure (probably censored)")
-                #     continue
+            except Exception as e:
+                print(e)
+                continue
 
-                if result != "None":
-                    new_scenario = pd.DataFrame(
-                        {
-                            f"creative_scenario_round_{round}": result,
-                            "item_gen_model_name": model_name,
-                            # "topic": topic,
-                            "item_gen_max_tokens": max_tokens,
-                            "item_gen_presence_penalty": presence_penalty,
-                            "item_gen_frequency_penalty": frequency_penalty,
-                            "item_gen_temperature": temperature,
-                            "item_type": row["item_type"],
-                            "item_gen_top_p": top_p,
-                            "word_list": row["word_list"],
-                        },
-                        index=[0],
-                    )
-                    wordlists_with_s = pd.concat((wordlists_with_s, new_scenario))
-                    break
+            new_scenario = pd.DataFrame(
+                {
+                    f"creative_scenario_round_{round}": result,
+                    "item_gen_model_name": model_name,
+                    "item_gen_max_tokens": max_tokens,
+                    "item_gen_presence_penalty": presence_penalty,
+                    "item_gen_frequency_penalty": frequency_penalty,
+                    "item_gen_temperature": temperature,
+                    "item_type": row["item_type"],
+                    "item_gen_top_p": top_p,
+                    "word_list": row["word_list"],
+                },
+                index=[0],
+            )
+            wordlists_with_s = pd.concat((wordlists_with_s, new_scenario))
 
+        print(f"Item gen finished, total items {len(wordlists_with_s)}")
         # drop rows that failed quality control metrics
         wordlists_with_s.reset_index(drop=True, inplace=True)
         wordlists_with_s = wordlists_with_s[
@@ -448,7 +432,6 @@ def create_scenarios(
             itemGenOutputFile,
             orient="records",
         )
-        print(f"Item gen finished, total items {len(wordlists_with_s)}")
     else:
         print("Unsupported combination of arguments!")
 
