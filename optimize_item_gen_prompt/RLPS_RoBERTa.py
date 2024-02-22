@@ -24,15 +24,21 @@ from peft import LoraConfig, TaskType, get_peft_model
 # Replicate Simones Auto Scorer
 def train_model():
     run = wandb.init(project="retrain-scoring-model")
-    os.environ["WANDB_WATCH"]="true"
+    os.environ["WANDB_WATCH"] = "true"
 
     # for distributed training
     accelerator = Accelerator()
     # TODO: put these params in wandb
-    peft_config = LoraConfig(peft_type=TaskType.SEQ_CLS, inference_mode=False, r=wandb.config.lora_r, lora_alpha=wandb.config.lora_alpha, lora_dropout=wandb.config.lora_dropout)
+    peft_config = LoraConfig(
+        peft_type=TaskType.SEQ_CLS,
+        inference_mode=False,
+        r=wandb.config.lora_r,
+        lora_alpha=wandb.config.lora_alpha,
+        lora_dropout=wandb.config.lora_dropout,
+    )
 
     d = pd.read_csv(
-        "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSfinalMeanScore.csv"
+        "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset3.csv"
     )
 
     # prefix = "A creative solution for the situation: " # we'll use prefix/conn to construct inputs to the model
@@ -98,11 +104,12 @@ def train_model():
         return mse
 
     # RETRAIN
+    print(wandb.config)
 
     training_args = TrainingArguments(
         output_dir="/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model",
         report_to="wandb",
-        learning_rate=wandb.config.learning_rate,
+        learning_rate=wandb.config.lr,
         num_train_epochs=wandb.config.epochs,
         per_device_train_batch_size=wandb.config.batch_size,
         per_device_eval_batch_size=wandb.config.batch_size,
@@ -214,20 +221,6 @@ def evaluate_model(
 
 
 if __name__ == "__main__":
-    config= {
-        "parameters": {
-            "model_name": {"values":["roberta-base"]},
-            "epochs": {"values": [25, 50, 75, 100, 125]},
-            "lr": {"max": 0.1, "min": 0.00001},
-            "batch_size": {"values": [8, 16, 32]},
-            "lora_r": {"values": [8]},
-            "lora_alpha": {"values": [32]},
-            "lora_dropout": {"values": [0.1]},
-            "metric": {"values": "originality"},
-        }
-    }
-    sweep_id = wandb.sweep(sweep=config, project="retrain-scoring-model")
-    wandb.agent(sweep_id, function=train_model, count=10)
 
     # parser = ArgumentParser()
     # parser.add_argument("--task", type=str)
@@ -236,7 +229,7 @@ if __name__ == "__main__":
     # parser.add_argument("--prediction", type=str)
     # parser = parser.parse_args()
     # if parser.task == "train":
-    #     train_model()
+    train_model()
     # elif parser.task == "evaluate":
     #     evaluate_model(
     #         parser.trained_model_dir, parser.item_responses, parser.prediction
