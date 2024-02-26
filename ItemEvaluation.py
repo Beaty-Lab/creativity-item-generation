@@ -40,7 +40,7 @@ class CreativityScenarioItemEvaluationParser(BaseOutputParser):
             except js.JSONDecodeError as e:
                 return js.loads(s[: e.pos])
 
-        return str(fix_json(text))
+        return js.dumps(fix_json(text))
 
 
 def test_creative_problem_eval(prompt_idx: int, scenario: str, llm):
