@@ -14,6 +14,7 @@ from transformers import (
     TrainingArguments,
     Trainer,
 )
+from transformers.trainer_utils import IntervalStrategy
 from accelerate import Accelerator
 import time
 import transformers
@@ -21,10 +22,9 @@ from argparse import ArgumentParser
 from peft import LoraConfig, TaskType, get_peft_model
 
 
-# Replicate Simones Auto Scorer
+# training done with wandb sweep for grid search
 def train_model():
     run = wandb.init(project="retrain-scoring-model")
-    os.environ["WANDB_WATCH"] = "true"
 
     # for distributed training
     accelerator = Accelerator()
@@ -88,6 +88,8 @@ def train_model():
         wandb.config.model_name
     )  # ...some settings in the tokenizer call
 
+    wandb.watch(model)
+
     #  DEFINE WRAPPER TOKENIZER FUNCTION (FOR BATCH TRAINING)
     def tokenize_function(examples):
         return tokenizer(examples["text"], truncation=True, padding=True)
@@ -101,6 +103,7 @@ def train_model():
         predictions, references = eval_preds
         mse_metric = evaluate.load("mse")
         mse = mse_metric.compute(predictions=predictions, references=references)
+        wandb.log({"eval_mse": mse})
         return mse
 
     # RETRAIN
@@ -134,6 +137,127 @@ def train_model():
     result = trainer.train()
     trainer.evaluate()
     # wandb.finish()
+
+
+def train_model_no_sweep():
+
+    config = {
+        "batch_size": 16,
+        "epochs": 125,
+        "lora_alpha": 32,
+        "lora_dropout": 0.1,
+        "lora_r": 8,
+        "lr": 0.001,
+        "metric": "originality",
+        "model_name": "roberta-base"
+    }
+
+    # for distributed training
+    accelerator = Accelerator()
+    # TODO: put these params in wandb
+    peft_config = LoraConfig(
+        peft_type=TaskType.SEQ_CLS,
+        inference_mode=False,
+        r=config["lora_r"],
+        lora_alpha=config["lora_alpha"],
+        lora_dropout=config["lora_dropout"],
+    )
+
+    d = pd.read_csv(
+        "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset3.csv"
+    )
+
+    # prefix = "A creative solution for the situation: " # we'll use prefix/conn to construct inputs to the model
+    # suffix = "is: " # we'll use prefix/conn to construct inputs to the model
+
+    scaler = StandardScaler()
+    np.random.seed(40)  # sets a randomization seed for reproducibility
+    transformers.set_seed(40)
+
+    # SET UP DATASET
+    d["inputs"] = d["SolutionsWithProblem"]
+    d["text"] = d["inputs"]
+
+    if config["metric"] == "originality":
+        d["label"] = d["FacScoresO"]
+    elif config["metric"] == "quality":
+        d["label"] = d["FacScoresQ"]
+
+    d_input = d.filter(["text", "label", "set"], axis=1)
+
+    #  CREATE TRAIN/TEST SPLIT
+    dataset = Dataset.from_pandas(
+        d_input, preserve_index=False
+    )  # Turns pandas data into huggingface/pytorch dataset
+    train_val_test_dataset = DatasetDict(
+        {
+            "train": dataset.filter(lambda example: example["set"] == "training"),
+            "test": dataset.filter(lambda example: example["set"] == "test"),
+            "heldout": dataset.filter(lambda example: example["set"] == "heldout"),
+        }
+    )
+
+    train_val_test_dataset = train_val_test_dataset.remove_columns("set")
+
+    print(train_val_test_dataset)  # show the dataset dictionary
+    print(train_val_test_dataset["train"].features)
+    time.sleep(5)
+
+    # SET UP MODEL & TOKENIZER
+    model = AutoModelForSequenceClassification.from_pretrained(
+        config["model_name"], num_labels=1
+    )  # labels = 1 is for regression
+
+    model = get_peft_model(model, peft_config)
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        config["model_name"]
+    )  # ...some settings in the tokenizer call
+
+    #  DEFINE WRAPPER TOKENIZER FUNCTION (FOR BATCH TRAINING)
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], truncation=True, padding=True)
+
+    tokenized_datasets = train_val_test_dataset.map(
+        tokenize_function, batched=True
+    )  # applies wrapper to our dataset
+
+    #  DEFINE LOSS METRIC (ROOT MEAN SQUARED ERROR [rmse])
+    def compute_metrics(eval_preds):
+        predictions, references = eval_preds
+        mse_metric = evaluate.load("mse")
+        return mse_metric.compute(predictions=predictions, references=references)
+
+    training_args = TrainingArguments(
+        output_dir="/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation",
+        learning_rate=config["lr"],
+        num_train_epochs=config["epochs"],
+        per_device_train_batch_size=config["batch_size"],
+        per_device_eval_batch_size=config["batch_size"],
+        disable_tqdm=False,
+        load_best_model_at_end=False,
+        save_strategy=IntervalStrategy.EPOCH,
+        do_eval=False,
+        save_total_limit=1,
+        report_to="none",
+    )
+
+    trainer = accelerator.prepare(
+        Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=tokenized_datasets["train"],
+            eval_dataset=tokenized_datasets["heldout"],
+            compute_metrics=compute_metrics,
+            tokenizer=tokenizer,
+        )
+    )
+
+
+    result = trainer.train()
+    prediction = trainer.predict(tokenized_datasets["heldout"])
+    mse_metric = evaluate.load("mse")
+    print(mse_metric.compute(predictions=prediction.predictions[1], references=tokenized_datasets["heldout"]["label"]))
 
 
 # use the trained autoscorer to get results on new item responses
@@ -220,19 +344,6 @@ def evaluate_model(
     # dataset_test_df.to_json(item_responses)
 
 
+# TODO: don't want to have to change this manually
 if __name__ == "__main__":
-
-    # parser = ArgumentParser()
-    # parser.add_argument("--task", type=str)
-    # parser.add_argument("--trained_model_dir", type=str)
-    # parser.add_argument("--item_responses", type=str)
-    # parser.add_argument("--prediction", type=str)
-    # parser = parser.parse_args()
-    # if parser.task == "train":
-    train_model()
-    # elif parser.task == "evaluate":
-    #     evaluate_model(
-    #         parser.trained_model_dir, parser.item_responses, parser.prediction
-    #     )
-    # else:
-    #     print("A task needs to be specified!")
+    train_model_no_sweep()
