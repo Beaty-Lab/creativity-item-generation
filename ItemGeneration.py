@@ -1,6 +1,5 @@
 import time
-import torch
-import bitsandbytes
+import numpy as np
 import re
 import pandas as pd
 
@@ -121,10 +120,12 @@ class CreativityScenarioItemParser(BaseOutputParser):
 
         forbidden_strings = [
             "On the one hand",
+            "On the other hand",
             "dilemma",
             "must navigate",
             "must decide",
             "has to decide",
+            "is torn between"
         ]
 
         # Remove intervening newlines
@@ -215,7 +216,7 @@ def test_creative_problem(
         item_shots = _convert_to_message(
             (
                 "human",
-                "\nHere are some more examples of high quality scenarios from other authors, try to think of scenarios that are similar to these:\n"
+                "\nHere are some more examples of high quality scenarios from other authors. Use these scenarios as guidance, but avoid drawing from them too heavily when developing your own:\n"
                 + "\n###\n".join(item_shots)
                 + f"""\n###\nWord list:
                     {word_list}
@@ -257,13 +258,20 @@ def test_creative_problem(
             completion=completion_chain, prompt_value=prompt
         ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
 
-        result = validation_chain.invoke(
-            {
-                "word_list": word_list,
-                "ai_output": previous_llm_output,
-                "ai_feedback": ratings_from_file,
-            }
-        )
+        if ratings_from_file is not None:
+            result = validation_chain.invoke(
+                {
+                    "word_list": word_list,
+                    "ai_output": previous_llm_output,
+                    "ai_feedback": ratings_from_file,
+                }
+            )
+        else:
+            result = validation_chain.invoke(
+                {
+                    "word_list": word_list,
+                }
+            )
 
         return result
     else:
@@ -355,7 +363,7 @@ def create_scenarios(
 
             except Exception as e:
                 print(e)
-                result = "None"
+                result = np.nan
                 continue
 
             input_file.at[index, f"creative_scenario_round_{round}"] = result
@@ -369,6 +377,7 @@ def create_scenarios(
             input_file[f"creative_scenario_round_{round}"] != "None"
         ]
         input_file = input_file[input_file[f"creative_scenario_round_{round}"] != None]
+        input_file.dropna(subset=f"creative_scenario_round_{round}", inplace=True)
         input_file.to_json(itemGenOutputFile, orient="records")
         print(f"Item gen finished, total items: {len(input_file)}")
     elif input_file == None and round == 0:
@@ -401,6 +410,7 @@ def create_scenarios(
                 )
             except Exception as e:
                 print(e)
+                result = np.nan
                 continue
 
             new_scenario = pd.DataFrame(
@@ -428,6 +438,7 @@ def create_scenarios(
         wordlists_with_s = wordlists_with_s[
             wordlists_with_s[f"creative_scenario_round_{round}"] != None
         ]
+        wordlists_with_s.dropna(subset=f"creative_scenario_round_{round}",inplace=True)
         wordlists_with_s.to_json(
             itemGenOutputFile,
             orient="records",
