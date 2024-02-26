@@ -52,18 +52,26 @@ def SelectItemGenShots(
     itemGenNumShots: int,
     round: int,
     shotSelectionSort: str,
+    shotSelectionAggregate: str,
 ):
     itemPool = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
-    meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(
-        numeric_only=True
-    )
+
+    if shotSelectionAggregate == "mean":
+        meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(
+            numeric_only=True
+        )
+    elif shotSelectionAggregate == "variance":
+        meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").var(
+            numeric_only=True
+        )
+    
     if shotSelectionSort == "max":
         meanItemScores.sort_values(
             by=f"{shotSelectionMetric}_round_{round}", ascending=False, inplace=True
         )
     elif shotSelectionSort == "min":
         meanItemScores.sort_values(
-            by=f"{shotSelectionMetric}_round_{round}", ascending=False, inplace=False
+            by=f"{shotSelectionMetric}_round_{round}", ascending=True, inplace=True
         )
 
     item_list = meanItemScores.iloc[:itemGenNumShots].index.to_list()
@@ -359,6 +367,7 @@ def RunExperiment(config: dict):
                 config["itemGenNumShots"],
                 i,
                 config["shotSelectionSort"],
+                config["shotSelectionAggregate"],
             )
 
 
