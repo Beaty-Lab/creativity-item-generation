@@ -14,12 +14,15 @@ from transformers import (
     TrainingArguments,
     Trainer,
 )
+from peft import AutoPeftModel
 from transformers.trainer_utils import IntervalStrategy
 from accelerate import Accelerator
 import time
 import transformers
 from argparse import ArgumentParser
+from scipy.stats import spearmanr
 from peft import LoraConfig, TaskType, get_peft_model
+import json as js
 
 
 # training done with wandb sweep for grid search
@@ -135,7 +138,16 @@ def train_model():
     )
 
     result = trainer.train()
-    trainer.evaluate()
+    prediction = trainer.predict(tokenized_datasets["heldout"])
+    mse_metric = evaluate.load("mse")
+    wandb.log(
+        {
+            "eval_mse": mse_metric.compute(
+                predictions=prediction.predictions[1],
+                references=tokenized_datasets["heldout"]["label"],
+            )["mse"]
+        }
+    )
     # wandb.finish()
 
 
@@ -143,14 +155,18 @@ def train_model_no_sweep():
 
     config = {
         "batch_size": 16,
-        "epochs": 125,
+        "epochs": 100,
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_r": 8,
         "lr": 0.001,
         "metric": "originality",
-        "model_name": "roberta-base"
+        "model_name": "roberta-large",
     }
+
+    output_dir = (
+        "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt"
+    )
 
     # for distributed training
     accelerator = Accelerator()
@@ -229,15 +245,16 @@ def train_model_no_sweep():
         return mse_metric.compute(predictions=predictions, references=references)
 
     training_args = TrainingArguments(
-        output_dir="/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation",
+        output_dir=f"{output_dir}/scoring_model_evaluation",
         learning_rate=config["lr"],
         num_train_epochs=config["epochs"],
         per_device_train_batch_size=config["batch_size"],
         per_device_eval_batch_size=config["batch_size"],
         disable_tqdm=False,
-        load_best_model_at_end=False,
+        load_best_model_at_end=True,
         save_strategy=IntervalStrategy.EPOCH,
-        do_eval=False,
+        evaluation_strategy=IntervalStrategy.EPOCH,
+        do_eval=True,
         save_total_limit=1,
         report_to="none",
     )
@@ -253,17 +270,112 @@ def train_model_no_sweep():
         )
     )
 
-
     result = trainer.train()
     prediction = trainer.predict(tokenized_datasets["heldout"])
     mse_metric = evaluate.load("mse")
-    print(mse_metric.compute(predictions=prediction.predictions[1], references=tokenized_datasets["heldout"]["label"]))
+    print(
+        mse_metric.compute(
+            predictions=prediction.predictions[1],
+            references=tokenized_datasets["heldout"]["label"],
+        )
+    )
+
+    trainer.save_pretrained(f"{output_dir}/config.json")
+
+    with open(f"{output_dir}/config.json", "w+") as js_out:
+        js.dump(config, js_out)
+
+
+def evaluate_model(
+    trained_model_dir: str,
+    test_set: str,
+    metric: str,
+    config: str = None,  # path to config tile TODO: implement
+):
+    config = {
+        "batch_size": 16,
+        "epochs": 100,
+        "lora_alpha": 32,
+        "lora_dropout": 0.1,
+        "lora_r": 8,
+        "lr": 0.001,
+        "model_name": "roberta-large",
+    }
+    accelerator = Accelerator()
+    np.random.seed(40)  # sets a randomization seed for reproducibility
+    transformers.set_seed(40)
+
+    # item_responses and save_file should point to the same file
+    # we load twice so we can save without losing any columns
+    d = pd.read_json(test_set)
+
+    d["inputs"] = d["SolutionsWithProblem"]
+    d["text"] = d["inputs"]
+
+    if metric == "originality":
+        d["label"] = d["FacScoresO"]
+
+    elif metric == "quality":
+        d["label"] = d["FacScoresQ"]
+
+    d_input = d.filter(["text", "label"], axis=1)
+    dataset = Dataset.from_pandas(
+        d_input, preserve_index=False
+    )  # Turns pandas data into huggingface/pytorch dataset
+
+    model = AutoPeftModel.from_pretrained(trained_model_dir, num_labels=1)
+    tokenizer = AutoTokenizer.from_pretrained(trained_model_dir)
+
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], truncation=True, padding="max_length")
+
+    tokenized_datasets = dataset.map(
+        tokenize_function, batched=True
+    )  # applies wrapper to our dataset
+
+    #  DEFINE LOSS METRIC (ROOT MEAN SQUARED ERROR [rmse])
+    def compute_metrics(eval_preds):
+        predictions, references = eval_preds
+        mse_metric = evaluate.load("mse")
+        mse = mse_metric.compute(predictions=predictions, references=references)
+        return mse
+
+    training_args = TrainingArguments(
+        output_dir="/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation",
+        learning_rate=config["lr"],
+        num_train_epochs=config["epochs"],
+        per_device_train_batch_size=config["batch_size"],
+        per_device_eval_batch_size=config["batch_size"],
+        disable_tqdm=False,
+        load_best_model_at_end=False,
+        save_strategy="no",
+        evaluation_strategy="no",
+        eval_steps=500,
+        save_total_limit=1,
+    )
+
+    trainer = accelerator.prepare(
+        Trainer(
+            model=model,
+            args=training_args,
+            eval_dataset=tokenized_datasets,
+            compute_metrics=compute_metrics,
+            tokenizer=tokenizer,
+        )
+    )
+
+    prediction = trainer.predict(tokenized_datasets)
+    print(
+        spearmanr(
+            prediction,
+        )
+    )
 
 
 # use the trained autoscorer to get results on new item responses
 # make sure the prediction metric is the same as the model used to evaluate
 # TODO: update with peft
-def evaluate_model(
+def predict_with_model(
     trained_model_dir: str,
     item_responses: str,
     prediction_name: str,
@@ -288,7 +400,7 @@ def evaluate_model(
         d_input, preserve_index=False
     )  # Turns pandas data into huggingface/pytorch dataset
 
-    model = AutoModelForSequenceClassification.from_pretrained(
+    model = AutoPeftModel.from_pretrained(
         trained_model_dir, num_labels=1
     )  # TONS of settings in the model call, but labels = 1
     tokenizer = AutoTokenizer.from_pretrained(
@@ -334,6 +446,11 @@ def evaluate_model(
     )
 
     prediction = trainer.predict(tokenized_datasets)
+    print(
+        spearmanr(
+            prediction,
+        )
+    )
     test_data = {
         "text": tokenized_datasets["text"],
         f"{prediction_name}": np.squeeze(prediction.predictions),
