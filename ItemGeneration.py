@@ -125,7 +125,7 @@ class CreativityScenarioItemParser(BaseOutputParser):
             "must navigate",
             "must decide",
             "has to decide",
-            "is torn between"
+            "is torn between",
         ]
 
         # Remove intervening newlines
@@ -360,6 +360,7 @@ def create_scenarios(
                     item_shots=item_shots,
                     numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
                 )
+                print(result)
 
             except Exception as e:
                 print(e)
@@ -408,6 +409,7 @@ def create_scenarios(
                     scenario_names,
                     numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
                 )
+                print(result)
             except Exception as e:
                 print(e)
                 result = np.nan
@@ -438,7 +440,7 @@ def create_scenarios(
         wordlists_with_s = wordlists_with_s[
             wordlists_with_s[f"creative_scenario_round_{round}"] != None
         ]
-        wordlists_with_s.dropna(subset=f"creative_scenario_round_{round}",inplace=True)
+        wordlists_with_s.dropna(subset=f"creative_scenario_round_{round}", inplace=True)
         wordlists_with_s.to_json(
             itemGenOutputFile,
             orient="records",

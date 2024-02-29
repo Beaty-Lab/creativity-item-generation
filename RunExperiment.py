@@ -342,7 +342,7 @@ def RunExperiment(config: dict):
 
         # evaluate item responses
         if config["useItemResponseEvalModel"]:
-            RLPS_RoBERTa.evaluate_model(
+            RLPS_RoBERTa.predict_with_model(
                 config["itemResponseOriginalityModelDir"],
                 config["itemResponseGenOutputFile"],
                 "originality",
@@ -351,7 +351,7 @@ def RunExperiment(config: dict):
                 ],  # we need to chop off most columns from the first instance, so send another copy to save to
                 i,  # round
             )
-            RLPS_RoBERTa.evaluate_model(
+            RLPS_RoBERTa.predict_with_model(
                 config["itemResponseQualityModelDir"],
                 config["itemResponseGenOutputFile"],
                 "quality",

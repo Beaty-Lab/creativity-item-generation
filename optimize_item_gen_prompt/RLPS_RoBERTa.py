@@ -24,6 +24,8 @@ from scipy.stats import spearmanr
 from peft import LoraConfig, TaskType, get_peft_model
 import json as js
 
+# TODO: script is a mess, clean up
+
 
 # training done with wandb sweep for grid search
 def train_model():
@@ -155,12 +157,12 @@ def train_model_no_sweep():
 
     config = {
         "batch_size": 16,
-        "epochs": 100,
+        "epochs": 125,
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_r": 8,
         "lr": 0.001,
-        "metric": "originality",
+        "metric": "quality",
         "model_name": "roberta-large",
     }
 
@@ -170,7 +172,6 @@ def train_model_no_sweep():
 
     # for distributed training
     accelerator = Accelerator()
-    # TODO: put these params in wandb
     peft_config = LoraConfig(
         peft_type=TaskType.SEQ_CLS,
         inference_mode=False,
@@ -252,8 +253,8 @@ def train_model_no_sweep():
         per_device_eval_batch_size=config["batch_size"],
         disable_tqdm=False,
         load_best_model_at_end=True,
-        save_strategy=IntervalStrategy.EPOCH,
-        evaluation_strategy=IntervalStrategy.EPOCH,
+        save_strategy="no",
+        evaluation_strategy="no",
         do_eval=True,
         save_total_limit=1,
         report_to="none",
@@ -280,9 +281,9 @@ def train_model_no_sweep():
         )
     )
 
-    trainer.save_pretrained(f"{output_dir}/config.json")
+    trainer.save_model(f"{output_dir}/scoring_model_evaluation/")
 
-    with open(f"{output_dir}/config.json", "w+") as js_out:
+    with open(f"{output_dir}/scoring_model_evaluation/config.json", "w+") as js_out:
         js.dump(config, js_out)
 
 
@@ -307,22 +308,29 @@ def evaluate_model(
 
     # item_responses and save_file should point to the same file
     # we load twice so we can save without losing any columns
-    d = pd.read_json(test_set)
+    d = pd.read_csv(test_set)
 
     d["inputs"] = d["SolutionsWithProblem"]
     d["text"] = d["inputs"]
 
     if metric == "originality":
-        d["label"] = d["FacScoresO"]
+        y_test = d["FacScoresO"].to_numpy()
 
     elif metric == "quality":
-        d["label"] = d["FacScoresQ"]
+        y_test = d["FacScoresQ"].to_numpy()
 
-    d_input = d.filter(["text", "label"], axis=1)
+
+    d_input = d.filter(["text", "label", "set"], axis=1)
     dataset = Dataset.from_pandas(
         d_input, preserve_index=False
     )  # Turns pandas data into huggingface/pytorch dataset
 
+    train_val_test_dataset = DatasetDict(
+        {
+            "test": dataset.filter(lambda example: example["set"] == "test"),
+        }
+    )
+    train_val_test_dataset = train_val_test_dataset.remove_columns("set")
     model = AutoPeftModel.from_pretrained(trained_model_dir, num_labels=1)
     tokenizer = AutoTokenizer.from_pretrained(trained_model_dir)
 
@@ -367,7 +375,7 @@ def evaluate_model(
     prediction = trainer.predict(tokenized_datasets)
     print(
         spearmanr(
-            prediction,
+            prediction.predictions, y_test
         )
     )
 
@@ -400,7 +408,7 @@ def predict_with_model(
         d_input, preserve_index=False
     )  # Turns pandas data into huggingface/pytorch dataset
 
-    model = AutoPeftModel.from_pretrained(
+    model = AutoModelForSequenceClassification.from_pretrained(
         trained_model_dir, num_labels=1
     )  # TONS of settings in the model call, but labels = 1
     tokenizer = AutoTokenizer.from_pretrained(
@@ -448,7 +456,7 @@ def predict_with_model(
     prediction = trainer.predict(tokenized_datasets)
     print(
         spearmanr(
-            prediction,
+            prediction.predictions,
         )
     )
     test_data = {
@@ -464,3 +472,5 @@ def predict_with_model(
 # TODO: don't want to have to change this manually
 if __name__ == "__main__":
     train_model_no_sweep()
+    # evaluate_model("/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation/roberta-large-peft-originality",
+    #                "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset3.csv","originality")
