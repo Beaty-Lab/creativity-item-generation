@@ -14,7 +14,7 @@ from transformers import (
     TrainingArguments,
     Trainer,
 )
-from peft import AutoPeftModel
+from peft import AutoPeftModel, prepare_model_for_kbit_training
 from transformers.trainer_utils import IntervalStrategy
 from accelerate import Accelerator
 import time
@@ -23,8 +23,36 @@ from argparse import ArgumentParser
 from scipy.stats import spearmanr
 from peft import LoraConfig, TaskType, get_peft_model
 import json as js
+from transformers import (
+    TrainerState,
+    TrainerControl,
+    TrainerCallback,
+    BitsAndBytesConfig,
+    DataCollatorWithPadding
+)
+from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+
 
 # TODO: script is a mess, clean up
+class SavePeftModelCallback(TrainerCallback):
+    def on_save(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
+        checkpoint_folder = os.path.join(
+            args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}"
+        )
+
+        peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
+        kwargs["model"].save_pretrained(peft_model_path)
+
+        pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
+        if os.path.exists(pytorch_model_path):
+            os.remove(pytorch_model_path)
+        return control
 
 
 # training done with wandb sweep for grid search
@@ -161,10 +189,17 @@ def train_model_no_sweep():
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_r": 8,
-        "lr": 0.001,
-        "metric": "quality",
-        "model_name": "roberta-large",
+        "lr": 0.0001,
+        "metric": "originality",
+        "model_name": "meta-llama/Llama-2-7b-hf",
     }
+
+    quantized_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
 
     output_dir = (
         "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt"
@@ -174,6 +209,8 @@ def train_model_no_sweep():
     accelerator = Accelerator()
     peft_config = LoraConfig(
         peft_type=TaskType.SEQ_CLS,
+        target_modules=["q_proj", "v_proj"],
+        bias="none",
         inference_mode=False,
         r=config["lora_r"],
         lora_alpha=config["lora_alpha"],
@@ -196,11 +233,11 @@ def train_model_no_sweep():
     d["text"] = d["inputs"]
 
     if config["metric"] == "originality":
-        d["label"] = d["FacScoresO"]
+        d["labels"] = d["FacScoresO"]
     elif config["metric"] == "quality":
-        d["label"] = d["FacScoresQ"]
+        d["labels"] = d["FacScoresQ"]
 
-    d_input = d.filter(["text", "label", "set"], axis=1)
+    d_input = d.filter(["text", "labels", "set"], axis=1)
 
     #  CREATE TRAIN/TEST SPLIT
     dataset = Dataset.from_pandas(
@@ -215,35 +252,42 @@ def train_model_no_sweep():
     )
 
     train_val_test_dataset = train_val_test_dataset.remove_columns("set")
-
-    print(train_val_test_dataset)  # show the dataset dictionary
-    print(train_val_test_dataset["train"].features)
-    time.sleep(5)
-
     # SET UP MODEL & TOKENIZER
     model = AutoModelForSequenceClassification.from_pretrained(
-        config["model_name"], num_labels=1
+        config["model_name"], num_labels=1, quantization_config=quantized_config, trust_remote_code=True, device_map="auto"
     )  # labels = 1 is for regression
 
+    if "llama" in config["model_name"]:
+        model.config.pad_token_id = model.config.eos_token_id
+
+    model = prepare_model_for_kbit_training(model)
     model = get_peft_model(model, peft_config)
 
     tokenizer = AutoTokenizer.from_pretrained(
-        config["model_name"]
-    )  # ...some settings in the tokenizer call
+        config["model_name"], add_prefix_space=True
+    )
+    if "llama" in config["model_name"]:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+        tokenizer.pad_token = tokenizer.eos_token
 
     #  DEFINE WRAPPER TOKENIZER FUNCTION (FOR BATCH TRAINING)
     def tokenize_function(examples):
-        return tokenizer(examples["text"], truncation=True, padding=True)
+        return tokenizer(examples["text"], truncation=True, padding=True, max_length=512)
 
     tokenized_datasets = train_val_test_dataset.map(
         tokenize_function, batched=True
     )  # applies wrapper to our dataset
+    tokenized_datasets.set_format("torch")
+    tokenized_datasets = tokenized_datasets.remove_columns("text")
+
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+    print(tokenized_datasets)  # show the dataset dictionary
 
     #  DEFINE LOSS METRIC (ROOT MEAN SQUARED ERROR [rmse])
     def compute_metrics(eval_preds):
         predictions, references = eval_preds
         mse_metric = evaluate.load("mse")
-        return mse_metric.compute(predictions=predictions, references=references)
+        return {"mse": mse_metric.compute(predictions=predictions, references=references)}
 
     training_args = TrainingArguments(
         output_dir=f"{output_dir}/scoring_model_evaluation",
@@ -258,6 +302,7 @@ def train_model_no_sweep():
         do_eval=True,
         save_total_limit=1,
         report_to="none",
+        remove_unused_columns=False
     )
 
     trainer = accelerator.prepare(
@@ -268,6 +313,7 @@ def train_model_no_sweep():
             eval_dataset=tokenized_datasets["heldout"],
             compute_metrics=compute_metrics,
             tokenizer=tokenizer,
+            data_collator=data_collator
         )
     )
 
@@ -277,7 +323,7 @@ def train_model_no_sweep():
     print(
         mse_metric.compute(
             predictions=prediction.predictions[1],
-            references=tokenized_datasets["heldout"]["label"],
+            references=tokenized_datasets["heldout"]["labels"],
         )
     )
 
@@ -318,7 +364,6 @@ def evaluate_model(
 
     elif metric == "quality":
         y_test = d["FacScoresQ"].to_numpy()
-
 
     d_input = d.filter(["text", "label", "set"], axis=1)
     dataset = Dataset.from_pandas(
@@ -373,11 +418,7 @@ def evaluate_model(
     )
 
     prediction = trainer.predict(tokenized_datasets)
-    print(
-        spearmanr(
-            prediction.predictions, y_test
-        )
-    )
+    print(spearmanr(prediction.predictions, y_test))
 
 
 # use the trained autoscorer to get results on new item responses
@@ -389,6 +430,7 @@ def predict_with_model(
     prediction_name: str,
     save_file: str,
     round: int,
+    use_peft: bool = False,
 ):
     accelerator = Accelerator()
     np.random.seed(40)  # sets a randomization seed for reproducibility
@@ -408,12 +450,13 @@ def predict_with_model(
         d_input, preserve_index=False
     )  # Turns pandas data into huggingface/pytorch dataset
 
-    model = AutoModelForSequenceClassification.from_pretrained(
-        trained_model_dir, num_labels=1
-    )  # TONS of settings in the model call, but labels = 1
-    tokenizer = AutoTokenizer.from_pretrained(
-        trained_model_dir
-    )  # ...some settings in the tokenizer call
+    if use_peft:
+        model = AutoPeftModel.from_pretrained(trained_model_dir, num_labels=1)
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(
+            trained_model_dir, num_labels=1
+        )
+    tokenizer = AutoTokenizer.from_pretrained(trained_model_dir)
 
     def tokenize_function(examples):
         return tokenizer(examples["text"], truncation=True, padding="max_length")
@@ -454,11 +497,6 @@ def predict_with_model(
     )
 
     prediction = trainer.predict(tokenized_datasets)
-    print(
-        spearmanr(
-            prediction.predictions,
-        )
-    )
     test_data = {
         "text": tokenized_datasets["text"],
         f"{prediction_name}": np.squeeze(prediction.predictions),
@@ -472,5 +510,8 @@ def predict_with_model(
 # TODO: don't want to have to change this manually
 if __name__ == "__main__":
     train_model_no_sweep()
-    # evaluate_model("/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation/roberta-large-peft-originality",
-    #                "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset3.csv","originality")
+    # evaluate_model(
+    #     "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation/",
+    #     "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset3.csv",
+    #     "quality",
+    # )
