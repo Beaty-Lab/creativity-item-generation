@@ -22,7 +22,8 @@ from langchain.output_parsers import RetryOutputParser
 from langchain.prompts.chat import ChatPromptTemplate
 
 # API key stored in key.py, and should NOT be committed
-from key import key
+# TODO: add api support for other API models run directly from this script
+from key import OPENAI_KEY
 from tqdm import tqdm
 from readability import Readability
 from argparse import ArgumentParser
@@ -266,12 +267,14 @@ def test_creative_problem(
                     "ai_feedback": ratings_from_file,
                 }
             )
+            print(result)
         else:
             result = validation_chain.invoke(
                 {
                     "word_list": word_list,
                 }
             )
+            print(result)
 
         return result
     else:
@@ -342,8 +345,9 @@ def create_scenarios(
                 model_name == "gpt-4"
                 or model_name == "gpt-3.5-turbo"
                 or model_name == "google"
+                or model_name == "claude-3"
             ):
-                time.sleep(4.5)
+                time.sleep(3)
             scenario_names = row["word_list"].split(",")[::2]
             scenario_names = [
                 re.sub(r"([0-9]{1}\.)", "", s).strip() for s in scenario_names
@@ -393,6 +397,7 @@ def create_scenarios(
                 model_name == "gpt-4"
                 or model_name == "gpt-3.5-turbo"
                 or model_name == "google"
+                or model_name == "claude-3"
             ):
                 time.sleep(4)
             # grab just the names in the wordlist, need for preprocessing
@@ -484,7 +489,7 @@ if __name__ == "__main__":
             }
             llm = ChatOpenAI(
                 model_name=model_name,
-                openai_api_key=key,
+                openai_api_key=OPENAI_KEY,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 model_kwargs=model_kwargs,

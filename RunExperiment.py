@@ -27,14 +27,16 @@ warnings.filterwarnings(
 import ItemGeneration, ItemEvaluation
 from optimize_item_gen_prompt import GenerateCPSResponses, RLPS_RoBERTa
 from config import config
-from key import key
-from gemini_key import gemini_key
+from key import OPENAI_KEY, GEMINI_KEY, ANTHROPIC_KEY
 
 # OpenAI
 from langchain.chat_models import ChatOpenAI
 
 # Gemini
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+# Claude
+from langchain_anthropic import ChatAnthropic
 
 # HF
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
@@ -112,10 +114,11 @@ def RunExperiment(config: dict):
                     "top_p": config["itemGenTopP"],
                     "frequency_penalty": config["itemGenFrequencyPenalty"],
                     "presence_penalty": config["itemGenPresencePenalty"],
+                    "seed": config["random_seed"]
                 }
                 llm = ChatOpenAI(
                     model_name=config["itemGenModelName"],
-                    openai_api_key=key,
+                    openai_api_key=OPENAI_KEY,
                     temperature=config["itemGenTemperature"],
                     max_tokens=config["itemGenMaxTokens"],
                     model_kwargs=model_kwargs,
@@ -125,11 +128,18 @@ def RunExperiment(config: dict):
                 llm = ChatGoogleGenerativeAI(
                     model="gemini-pro",
                     convert_system_message_to_human=True,
-                    google_api_key=gemini_key,
+                    google_api_key=GEMINI_KEY,
                     temperature=config["itemGenTemperature"],
                     top_p=config["itemGenTopP"],
                     max_output_tokens=config["itemGenMaxTokens"],
                     max_retries=1,
+                )
+            elif config["itemGenModelName"] == "claude-3":
+                llm = ChatAnthropic(
+                    model_name = "claude-3-sonnet-20240229",
+                    max_tokens_to_sample = config["itemGenMaxTokens"],
+                    temperature = config["itemGenTemperature"],
+                    anthropic_api_key=ANTHROPIC_KEY,
                 )
             else:
                 model_kwargs = {
@@ -212,10 +222,11 @@ def RunExperiment(config: dict):
                         "top_p": config["itemEvalTopP"],
                         "frequency_penalty": config["itemEvalFrequencyPenalty"],
                         "presence_penalty": config["itemEvalPresencePenalty"],
+                        "seed": config["random_seed"]
                     }
                     llm = ChatOpenAI(
                         model_name=config["itemEvalModelName"],
-                        openai_api_key=key,
+                        openai_api_key=OPENAI_KEY,
                         temperature=config["itemEvalTemperature"],
                         max_tokens=config["itemEvalMaxTokens"],
                         model_kwargs=model_kwargs,
@@ -224,11 +235,18 @@ def RunExperiment(config: dict):
                     llm = ChatGoogleGenerativeAI(
                         model="gemini-pro",
                         convert_system_message_to_human=True,
-                        google_api_key=gemini_key,
+                        google_api_key=GEMINI_KEY,
                         temperature=config["itemEvalTemperature"],
                         top_p=config["itemEvalTopP"],
                         max_output_tokens=config["itemEvalMaxTokens"],
                         max_retries=1,
+                    )
+                elif config["itemEvalModelName"] == "claude-3":
+                    llm = ChatAnthropic(
+                        model_name = "claude-3-sonnet-20240229",
+                        max_tokens_to_sample = config["itemEvalMaxTokens"],
+                        temperature = config["itemEvalTemperature"],
+                        anthropic_api_key=ANTHROPIC_KEY,
                     )
                 else:
                     model_kwargs = {
@@ -284,10 +302,11 @@ def RunExperiment(config: dict):
                     "top_p": config["itemResponseGenTopP"],
                     "frequency_penalty": config["itemResponseGenFrequencyPenalty"],
                     "presence_penalty": config["itemResponseGenPresencePenalty"],
+                    "seed": config["random_seed"]
                 }
                 llm = ChatOpenAI(
                     model_name=config["itemResponseGenModelName"],
-                    openai_api_key=key,
+                    openai_api_key=OPENAI_KEY,
                     temperature=config["itemResponseGenTemperature"],
                     max_tokens=config["itemResponseGenMaxTokens"],
                     model_kwargs=model_kwargs,
@@ -296,12 +315,19 @@ def RunExperiment(config: dict):
                 llm = ChatGoogleGenerativeAI(
                     model="gemini-pro",
                     convert_system_message_to_human=True,
-                    google_api_key=gemini_key,
+                    google_api_key=GEMINI_KEY,
                     temperature=config["itemGenTemperature"],
                     top_p=config["itemGenTopP"],
                     max_output_tokens=config["itemGenMaxTokens"],
                     max_retries=1,
                 )
+            elif config["itemResponseGenModelName"] == "claude-3":
+                    llm = ChatAnthropic(
+                        model_name = "claude-3-sonnet-20240229",
+                        max_tokens_to_sample = config["itemGenMaxTokens"],
+                        temperature = config["itemGenTemperature"],
+                        anthropic_api_key=ANTHROPIC_KEY,
+                    )
             else:
                 model_kwargs = {
                     "top_p": config["itemResponseGenTopP"],

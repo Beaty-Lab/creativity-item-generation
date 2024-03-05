@@ -11,7 +11,7 @@ from transformers import (
     AutoTokenizer,
 )
 from transformers import pipeline as hf_pipeline
-from key import key
+from key import OPENAI_KEY
 import time
 
 
@@ -20,7 +20,6 @@ from langchain.prompts.chat import ChatPromptTemplate
 from langchain.chat_models import ChatOpenAI
 
 # API key stored in key.py, and should NOT be committed
-# from key import key
 from tqdm import tqdm
 from argparse import ArgumentParser
 
@@ -160,13 +159,14 @@ def create_scenario_responses(
         # we assume demographics want to be included if the file was specified
         # if so, create a "profile" by drawing a random sample from that file
         # do not sample them again twice
-        for i in tqdm(range(2)):  # TODO: make this a param, 3
+        for i in tqdm(range(10)):  # TODO: make this a param, 30
             if (
                 model_name == "gpt-3.5-turbo"
                 or model_name == "gpt-4"
                 or model_name == "google"
+                or model_name == "claude-3"
             ):
-                time.sleep(5)
+                time.sleep(3)
             if demographics_file is not None:
                 participant = demographics_file.sample(n=1)
                 # especially for gemini models, the prompt may be blocked due to the safety filters
@@ -181,8 +181,9 @@ def create_scenario_responses(
                         participant["Q24"].values[0],  # industry
                         participant["Q23"].values[0],  # title
                     )
-                except Exception:
-                    print("Google API failed")
+                    print(result)
+                except Exception as e:
+                    print(e)
                     continue
             else:
                 try:
@@ -191,8 +192,9 @@ def create_scenario_responses(
                         0,  # prompt_idx
                         llm,
                     )
-                except Exception:
-                    print("Google API Failed")
+                    print(result)
+                except Exception as e:
+                    print(e)
                     continue
 
             if demographics_file is not None:
@@ -263,7 +265,7 @@ if __name__ == "__main__":
         }
         llm = ChatOpenAI(
             model_name=model_name,
-            openai_api_key=key,
+            openai_api_key=OPENAI_KEY,
             temperature=temperature,
             max_tokens=max_tokens,
             model_kwargs=model_kwargs,
