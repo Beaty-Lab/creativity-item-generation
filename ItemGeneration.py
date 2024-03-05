@@ -260,6 +260,13 @@ def test_creative_problem(
         ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
 
         if ratings_from_file is not None:
+            final_prompt = validation_chain.format(
+                {
+                    "word_list": word_list,
+                    "ai_output": previous_llm_output,
+                    "ai_feedback": ratings_from_file,
+                }
+            )
             result = validation_chain.invoke(
                 {
                     "word_list": word_list,
@@ -269,6 +276,11 @@ def test_creative_problem(
             )
             print(result)
         else:
+            final_prompt = validation_chain.format(
+                {
+                    "word_list": word_list,
+                }
+            )
             result = validation_chain.invoke(
                 {
                     "word_list": word_list,
@@ -276,7 +288,7 @@ def test_creative_problem(
             )
             print(result)
 
-        return result
+        return result, final_prompt
     else:
         prompt = PromptGenerator.make_creative_scenario_generation_prompt(
             prompt_idx
@@ -291,8 +303,9 @@ def test_creative_problem(
             completion=completion_chain, prompt_value=prompt
         ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
 
+        final_prompt = validation_chain.format({"word_list": word_list})
         result = validation_chain.invoke({"word_list": word_list})
-        return result
+        return result, final_prompt
 
 
 # cookbooks for item gen
@@ -339,6 +352,7 @@ def create_scenarios(
             input_file[f"ratings_round_{round-1}"] = None
 
         input_file[f"creative_scenario_round_{round}"] = ""
+        input_file[f"prompt_round_{round}"] = ""
         for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
             result = "None"
             if (
@@ -354,7 +368,7 @@ def create_scenarios(
             ]
             # generation may fail due to google API filters
             try:
-                result = test_creative_problem(
+                result, prompt = test_creative_problem(
                     row["word_list"],
                     prompt_idx,
                     llm,
@@ -369,9 +383,11 @@ def create_scenarios(
             except Exception as e:
                 print(e)
                 result = np.nan
+                prompt = np.nan
                 continue
 
             input_file.at[index, f"creative_scenario_round_{round}"] = result
+            input_file.at[index, f"prompt_round_{round}"] = prompt
 
         # drop rows that failed quality controls
         # TODO: over multiple rounds, there could be many scenarios for the same wordlist + topic
@@ -390,6 +406,7 @@ def create_scenarios(
         wordlists = pd.read_csv(wordlist_file, sep="\t")
         wordlists.rename({"output": "word_list"}, axis=1, inplace=True)
         wordlists[f"creative_scenario_round_{round}"] = ""
+        wordlists[f"prompt_round_{round}"] = ""
         wordlists_with_s = pd.DataFrame()
         for index, row in tqdm(wordlists.iterrows(), total=wordlists.shape[0]):
             result = "None"  # keep on generating scenarios until the model passes all quality control checks
@@ -399,7 +416,7 @@ def create_scenarios(
                 or model_name == "google"
                 or model_name == "claude-3"
             ):
-                time.sleep(4)
+                time.sleep(5)
             # grab just the names in the wordlist, need for preprocessing
             scenario_names = row["word_list"].split(",")[::2]
             scenario_names = [
@@ -407,7 +424,7 @@ def create_scenarios(
             ]
             # generation may fail due to google API filters
             try:
-                result = test_creative_problem(
+                result, prompt = test_creative_problem(
                     row["word_list"],
                     prompt_idx,
                     llm,
@@ -418,11 +435,13 @@ def create_scenarios(
             except Exception as e:
                 print(e)
                 result = np.nan
+                prompt = np.nan
                 continue
 
             new_scenario = pd.DataFrame(
                 {
                     f"creative_scenario_round_{round}": result,
+                    f"prompt_round_{round}": prompt,
                     "item_gen_model_name": model_name,
                     "item_gen_max_tokens": max_tokens,
                     "item_gen_presence_penalty": presence_penalty,
