@@ -19,7 +19,8 @@ from transformers import (
 from transformers import pipeline as hf_pipeline
 
 # API key stored in key.py, and should NOT be committed
-from key import key
+# TODO: add support for other api models called directly from this script
+from key import OPENAI_KEY
 from tqdm import tqdm
 from random import randint
 from argparse import ArgumentParser
@@ -135,7 +136,7 @@ if __name__ == "__main__":
             }
             llm = ChatOpenAI(
                 model_name=model_name,
-                openai_api_key=key,
+                openai_api_key=OPENAI_KEY,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 model_kwargs=model_kwargs,
