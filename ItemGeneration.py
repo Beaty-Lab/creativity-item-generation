@@ -303,7 +303,7 @@ def test_creative_problem(
             completion=completion_chain, prompt_value=prompt
         ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
 
-        final_prompt = validation_chain.format({"word_list": word_list})
+        final_prompt = prompt.format(word_list=word_list)
         result = validation_chain.invoke({"word_list": word_list})
         return result, final_prompt
 
@@ -327,7 +327,6 @@ def create_wordlists(prompt_idx: int, output_file: str, llm):
 
 def create_scenarios(
     prompt_idx: int,
-    output_file: str,  # TODO: redundant
     model_name: str,
     llm,
     round,
@@ -340,7 +339,6 @@ def create_scenarios(
     numItemGenerationAttempts: int,
     input_file: str = None,
     wordlist_file: str = None,
-    num_items_per_prompt: int = 1,
     item_shots: list = None,
 ):
     # when true, will use add new items to an existing file
@@ -396,6 +394,9 @@ def create_scenarios(
         # change the drop to account for this, will need some careful engineering
         input_file = input_file[
             input_file[f"creative_scenario_round_{round}"] != "None"
+        ]
+        input_file = input_file[
+            input_file[f"creative_scenario_round_{round}"] != ""
         ]
         input_file = input_file[input_file[f"creative_scenario_round_{round}"] != None]
         input_file.dropna(subset=f"creative_scenario_round_{round}", inplace=True)
@@ -460,6 +461,9 @@ def create_scenarios(
         wordlists_with_s.reset_index(drop=True, inplace=True)
         wordlists_with_s = wordlists_with_s[
             wordlists_with_s[f"creative_scenario_round_{round}"] != "None"
+        ]
+        wordlists_with_s = wordlists_with_s[
+            wordlists_with_s[f"creative_scenario_round_{round}"] != ""
         ]
         wordlists_with_s = wordlists_with_s[
             wordlists_with_s[f"creative_scenario_round_{round}"] != None

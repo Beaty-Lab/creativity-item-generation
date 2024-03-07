@@ -25,6 +25,8 @@ warnings.filterwarnings(
 )  # so we don't have to see the sequential pipeline warning
 
 import ItemGeneration, ItemEvaluation
+from SelectItemGenShots import SelectItemGenShots
+
 from optimize_item_gen_prompt import GenerateCPSResponses, RLPS_RoBERTa
 from config import config
 from key import OPENAI_KEY, GEMINI_KEY, ANTHROPIC_KEY
@@ -45,39 +47,6 @@ from transformers import (
     AutoTokenizer,
 )
 from transformers import pipeline as hf_pipeline
-
-
-# select the highest quality items to include in the item gen prompt
-def SelectItemGenShots(
-    itemPool: pd.DataFrame,
-    shotSelectionMetric: str,
-    itemGenNumShots: int,
-    round: int,
-    shotSelectionSort: str,
-    shotSelectionAggregate: str,
-):
-    itemPool = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
-
-    if shotSelectionAggregate == "mean":
-        meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(
-            numeric_only=True
-        )
-    elif shotSelectionAggregate == "variance":
-        meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").var(
-            numeric_only=True
-        )
-    
-    if shotSelectionSort == "max":
-        meanItemScores.sort_values(
-            by=f"{shotSelectionMetric}_round_{round}", ascending=False, inplace=True
-        )
-    elif shotSelectionSort == "min":
-        meanItemScores.sort_values(
-            by=f"{shotSelectionMetric}_round_{round}", ascending=True, inplace=True
-        )
-
-    item_list = meanItemScores.iloc[:itemGenNumShots].index.to_list()
-    return item_list
 
 
 """
@@ -114,7 +83,6 @@ def RunExperiment(config: dict):
                     "top_p": config["itemGenTopP"],
                     "frequency_penalty": config["itemGenFrequencyPenalty"],
                     "presence_penalty": config["itemGenPresencePenalty"],
-                    "seed": config["random_seed"]
                 }
                 llm = ChatOpenAI(
                     model_name=config["itemGenModelName"],
@@ -136,9 +104,9 @@ def RunExperiment(config: dict):
                 )
             elif config["itemGenModelName"] == "claude-3":
                 llm = ChatAnthropic(
-                    model_name = "claude-3-sonnet-20240229",
-                    max_tokens_to_sample = config["itemGenMaxTokens"],
-                    temperature = config["itemGenTemperature"],
+                    model_name="claude-3-sonnet-20240229",
+                    max_tokens_to_sample=config["itemGenMaxTokens"],
+                    temperature=config["itemGenTemperature"],
                     anthropic_api_key=ANTHROPIC_KEY,
                 )
             else:
@@ -154,9 +122,9 @@ def RunExperiment(config: dict):
                 model = AutoModelForCausalLM.from_pretrained(
                     config["itemGenModelName"],
                     load_in_4bit=True,
-                    attn_implementation="flash_attention_2",
                     **model_kwargs,
                 )
+
                 pipeline = hf_pipeline(
                     task="text-generation",
                     model=model,
@@ -174,7 +142,6 @@ def RunExperiment(config: dict):
         if i == 0:
             ItemGeneration.create_scenarios(
                 config["itemGenPromptIdx"],
-                config["itemGenOutputFile"],
                 config["itemGenModelName"],
                 llm,
                 i,  # round
@@ -187,12 +154,10 @@ def RunExperiment(config: dict):
                 config["numItemGenerationAttempts"],
                 input_file=None,
                 wordlist_file=config["wordlistFile"],
-                num_items_per_prompt=config["numItemsPerList"],
             )
         elif i >= 1:
             ItemGeneration.create_scenarios(
                 config["itemGenPromptIdx"],
-                config["itemGenOutputFile"],
                 config["itemGenModelName"],
                 llm,
                 i,  # round
@@ -207,7 +172,6 @@ def RunExperiment(config: dict):
                     "itemGenOutputFile"
                 ],  # TODO: make sure the output file is consistent from the item evaluator, etc
                 wordlist_file=config["wordlistFile"],
-                num_items_per_prompt=config["numItemsPerList"],
                 item_shots=item_shots,  # The k shots to give to the prompt
             )
         # evaluate items
@@ -222,7 +186,6 @@ def RunExperiment(config: dict):
                         "top_p": config["itemEvalTopP"],
                         "frequency_penalty": config["itemEvalFrequencyPenalty"],
                         "presence_penalty": config["itemEvalPresencePenalty"],
-                        "seed": config["random_seed"]
                     }
                     llm = ChatOpenAI(
                         model_name=config["itemEvalModelName"],
@@ -243,9 +206,9 @@ def RunExperiment(config: dict):
                     )
                 elif config["itemEvalModelName"] == "claude-3":
                     llm = ChatAnthropic(
-                        model_name = "claude-3-sonnet-20240229",
-                        max_tokens_to_sample = config["itemEvalMaxTokens"],
-                        temperature = config["itemEvalTemperature"],
+                        model_name="claude-3-sonnet-20240229",
+                        max_tokens_to_sample=config["itemEvalMaxTokens"],
+                        temperature=config["itemEvalTemperature"],
                         anthropic_api_key=ANTHROPIC_KEY,
                     )
                 else:
@@ -259,8 +222,11 @@ def RunExperiment(config: dict):
                         config["itemEvalModelName"], **model_kwargs
                     )
                     model = AutoModelForCausalLM.from_pretrained(
-                        config["itemEvalModelName"], load_in_4bit=True, **model_kwargs
+                        config["itemEvalModelName"],
+                        load_in_4bit=True,
+                        **model_kwargs,
                     )
+
                     pipeline = hf_pipeline(
                         task="text-generation",
                         model=model,
@@ -302,7 +268,6 @@ def RunExperiment(config: dict):
                     "top_p": config["itemResponseGenTopP"],
                     "frequency_penalty": config["itemResponseGenFrequencyPenalty"],
                     "presence_penalty": config["itemResponseGenPresencePenalty"],
-                    "seed": config["random_seed"]
                 }
                 llm = ChatOpenAI(
                     model_name=config["itemResponseGenModelName"],
@@ -322,12 +287,12 @@ def RunExperiment(config: dict):
                     max_retries=1,
                 )
             elif config["itemResponseGenModelName"] == "claude-3":
-                    llm = ChatAnthropic(
-                        model_name = "claude-3-sonnet-20240229",
-                        max_tokens_to_sample = config["itemGenMaxTokens"],
-                        temperature = config["itemGenTemperature"],
-                        anthropic_api_key=ANTHROPIC_KEY,
-                    )
+                llm = ChatAnthropic(
+                    model_name="claude-3-sonnet-20240229",
+                    max_tokens_to_sample=config["itemGenMaxTokens"],
+                    temperature=config["itemGenTemperature"],
+                    anthropic_api_key=ANTHROPIC_KEY,
+                )
             else:
                 model_kwargs = {
                     "top_p": config["itemResponseGenTopP"],
@@ -343,6 +308,7 @@ def RunExperiment(config: dict):
                     load_in_4bit=True,
                     **model_kwargs,
                 )
+
                 pipeline = hf_pipeline(
                     task="text-generation",
                     model=model,
@@ -394,6 +360,7 @@ def RunExperiment(config: dict):
                 i,
                 config["shotSelectionSort"],
                 config["shotSelectionAggregate"],
+                False # TODO make config arg
             )
 
 
