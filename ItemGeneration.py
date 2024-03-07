@@ -2,6 +2,7 @@ import time
 import numpy as np
 import re
 import pandas as pd
+import config
 
 # OpenAI
 from langchain.chat_models import ChatOpenAI
@@ -379,7 +380,9 @@ def create_scenarios(
                 print(result)
 
             except Exception as e:
-                print(e)
+                with open(config["logFile"], "w") as log:
+                    print(e)
+                    log.writelines(e)
                 result = np.nan
                 prompt = np.nan
                 continue
@@ -401,7 +404,9 @@ def create_scenarios(
         input_file = input_file[input_file[f"creative_scenario_round_{round}"] != None]
         input_file.dropna(subset=f"creative_scenario_round_{round}", inplace=True)
         input_file.to_json(itemGenOutputFile, orient="records")
-        print(f"Item gen finished, total items: {len(input_file)}")
+        with open(config["logFile"], "w") as log:
+            print(f"Item gen finished, total items: {len(input_file)}")
+            log.writelines(f"Item gen finished, total items: {len(input_file)}")
     elif input_file == None and round == 0:
         # path for a fresh round of item generation without evalution
         wordlists = pd.read_csv(wordlist_file, sep="\t")
@@ -434,7 +439,9 @@ def create_scenarios(
                 )
                 print(result)
             except Exception as e:
-                print(e)
+                with open(config["logFile"], "w") as log:
+                    print(e)
+                    log.writelines(e)
                 result = np.nan
                 prompt = np.nan
                 continue
@@ -456,7 +463,9 @@ def create_scenarios(
             )
             wordlists_with_s = pd.concat((wordlists_with_s, new_scenario))
 
-        print(f"Item gen finished, total items {len(wordlists_with_s)}")
+        with open(config["logFile"], "w") as log:
+            print(f"Item gen finished, total items {len(wordlists_with_s)}")
+            log.writelines(f"Item gen finished, total items {len(wordlists_with_s)}")
         # drop rows that failed quality control metrics
         wordlists_with_s.reset_index(drop=True, inplace=True)
         wordlists_with_s = wordlists_with_s[
