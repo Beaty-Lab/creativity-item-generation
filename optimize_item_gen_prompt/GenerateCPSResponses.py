@@ -3,6 +3,7 @@ import torch
 import bitsandbytes
 import re
 import pandas as pd
+import config
 
 # HF
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
@@ -166,7 +167,7 @@ def create_scenario_responses(
                 or model_name == "google"
                 or model_name == "claude-3"
             ):
-                time.sleep(3)
+                time.sleep(5)
             if demographics_file is not None:
                 participant = demographics_file.sample(n=1)
                 # especially for gemini models, the prompt may be blocked due to the safety filters
@@ -183,7 +184,9 @@ def create_scenario_responses(
                     )
                     print(result)
                 except Exception as e:
-                    print(e)
+                    with open(config["logFile"], "w") as log:
+                        print(e)
+                        log.writelines(e)
                     continue
             else:
                 try:
@@ -194,7 +197,9 @@ def create_scenario_responses(
                     )
                     print(result)
                 except Exception as e:
-                    print(e)
+                    with open(config["logFile"], "w") as log:
+                        print(e)
+                        log.writelines(e)
                     continue
 
             if demographics_file is not None:

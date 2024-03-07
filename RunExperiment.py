@@ -69,10 +69,16 @@ def RunExperiment(config: dict):
     config_path = Path(config["itemGenOutputFile"]).parent.absolute()
     with open(join(config_path, "config.json"), "w+") as cf:
         json.dump(config, cf)
+    
+    with open(config["logFile"], "w+") as log:
+        log.writelines("Starting Trial...")
 
     for i in range(config["numIter"]):
-        print(f"Starting iteration {i} of experiment")
-        print("Generating items")
+        with open(config["logFile"], "w") as log:
+            print(f"Starting iteration {i} of experiment")
+            print("Generating items")
+            log.writelines(f"Starting iteration {i} of experiment")
+            log.writelines("Generating items")
         try:
             # load item gen model
             if (
@@ -136,7 +142,9 @@ def RunExperiment(config: dict):
                 llm = HuggingFacePipeline(pipeline=pipeline)
 
         except Exception as e:
-            print(e)
+            with open(config["logFile"], "w") as log:
+                print(e)
+                log.writelines(e)
             exit(-1)
 
         if i == 0:
@@ -176,7 +184,9 @@ def RunExperiment(config: dict):
             )
         # evaluate items
         if config["useItemEvalModel"]:
-            print("Evaluating Items")
+            with open(config["logFile"], "w") as log:
+                print("Evaluating Items")
+                log.writelines("Evaluating Items")
             try:
                 if (
                     config["itemEvalModelName"] == "gpt-4"
@@ -238,7 +248,9 @@ def RunExperiment(config: dict):
                     llm = HuggingFacePipeline(pipeline=pipeline)
 
             except Exception as e:
-                print(e)
+                with open(config["logFile"], "w") as log:
+                    print(e)
+                    log.writelines(e)
                 exit(-1)
 
             ItemEvaluation.evaluate_scenarios(
@@ -257,7 +269,9 @@ def RunExperiment(config: dict):
                 config["itemEvalTopP"],
             )
 
-        print("Generating Item Responses")
+        with open(config["logFile"], "w") as log:
+            print("Generating Item Responses")
+            log.writelines("Generating Item Responses")
         # generate item responses
         try:
             if (
@@ -319,7 +333,9 @@ def RunExperiment(config: dict):
                 )
                 llm = HuggingFacePipeline(pipeline=pipeline)
         except Exception as e:
-            print(e)
+            with open(config["logFile"], "w") as log:
+                print(e)
+                log.writelines(e)
             exit(-1)
 
         # TODO: whether or not item eval was used should be check to make sure the correct file is updated.

@@ -4,6 +4,7 @@ import torch
 import re
 import json as js
 import pandas as pd
+import config
 
 # OpenAI
 from langchain.chat_models import ChatOpenAI
@@ -92,7 +93,9 @@ def evaluate_scenarios(
                     llm,
                 )
             except Exception as e:
-                print(e)
+                with open(config["logFile"], "w") as log:
+                    print(e)
+                    log.writelines(e)
                 evaluation = "None"
                 continue
             if evaluation != "None":
