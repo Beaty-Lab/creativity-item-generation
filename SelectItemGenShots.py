@@ -121,12 +121,3 @@ def ConstraintSatisfaction(
         useConstraintSatisfaction=False,
     )
 
-
-ConstraintSatisfaction(
-    "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_13b_item_gen_llama_13b_eval_max_gen_tokens_350_4_exemplars_mean_seed_999/item_responses",
-    "originality",
-    4,
-    2,
-    "max",
-    "mean",
-)
