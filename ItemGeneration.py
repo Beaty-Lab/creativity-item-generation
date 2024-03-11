@@ -2,7 +2,7 @@ import time
 import numpy as np
 import re
 import pandas as pd
-import config
+from config import config
 
 # OpenAI
 from langchain.chat_models import ChatOpenAI
@@ -261,8 +261,8 @@ def test_creative_problem(
         ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
 
         if ratings_from_file is not None:
-            final_prompt = validation_chain.format(
-                {
+            final_prompt = prompt.format(
+                **{
                     "word_list": word_list,
                     "ai_output": previous_llm_output,
                     "ai_feedback": ratings_from_file,
@@ -277,8 +277,8 @@ def test_creative_problem(
             )
             print(result)
         else:
-            final_prompt = validation_chain.format(
-                {
+            final_prompt = prompt.format(
+                **{
                     "word_list": word_list,
                 }
             )
@@ -380,9 +380,9 @@ def create_scenarios(
                 print(result)
 
             except Exception as e:
-                with open(config["logFile"], "w") as log:
+                with open(config["logFile"], "a") as log:
                     print(e)
-                    log.writelines(e)
+                    log.writelines(str(e)+"\n")
                 result = np.nan
                 prompt = np.nan
                 continue
@@ -404,9 +404,9 @@ def create_scenarios(
         input_file = input_file[input_file[f"creative_scenario_round_{round}"] != None]
         input_file.dropna(subset=f"creative_scenario_round_{round}", inplace=True)
         input_file.to_json(itemGenOutputFile, orient="records")
-        with open(config["logFile"], "w") as log:
+        with open(config["logFile"], "a") as log:
             print(f"Item gen finished, total items: {len(input_file)}")
-            log.writelines(f"Item gen finished, total items: {len(input_file)}")
+            log.writelines(f"Item gen finished, total items: {len(input_file)}\n")
     elif input_file == None and round == 0:
         # path for a fresh round of item generation without evalution
         wordlists = pd.read_csv(wordlist_file, sep="\t")
@@ -439,9 +439,9 @@ def create_scenarios(
                 )
                 print(result)
             except Exception as e:
-                with open(config["logFile"], "w") as log:
+                with open(config["logFile"], "a") as log:
                     print(e)
-                    log.writelines(e)
+                    log.writelines(str(e)+"\n")
                 result = np.nan
                 prompt = np.nan
                 continue
@@ -463,9 +463,9 @@ def create_scenarios(
             )
             wordlists_with_s = pd.concat((wordlists_with_s, new_scenario))
 
-        with open(config["logFile"], "w") as log:
+        with open(config["logFile"], "a") as log:
             print(f"Item gen finished, total items {len(wordlists_with_s)}")
-            log.writelines(f"Item gen finished, total items {len(wordlists_with_s)}")
+            log.writelines(f"Item gen finished, total items {len(wordlists_with_s)}\n")
         # drop rows that failed quality control metrics
         wordlists_with_s.reset_index(drop=True, inplace=True)
         wordlists_with_s = wordlists_with_s[
