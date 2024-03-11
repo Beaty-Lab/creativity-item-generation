@@ -3,7 +3,7 @@ import torch
 import bitsandbytes
 import re
 import pandas as pd
-import config
+from config import config
 
 # HF
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
@@ -184,9 +184,9 @@ def create_scenario_responses(
                     )
                     print(result)
                 except Exception as e:
-                    with open(config["logFile"], "w") as log:
+                    with open(config["logFile"], "a") as log:
                         print(e)
-                        log.writelines(e)
+                        log.writelines(str(e)+"\n")
                     continue
             else:
                 try:
@@ -197,9 +197,9 @@ def create_scenario_responses(
                     )
                     print(result)
                 except Exception as e:
-                    with open(config["logFile"], "w") as log:
+                    with open(config["logFile"], "a") as log:
                         print(e)
-                        log.writelines(e)
+                        log.writelines(str(e)+"\n")
                     continue
 
             if demographics_file is not None:
