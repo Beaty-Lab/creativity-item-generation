@@ -185,7 +185,7 @@ def train_model_no_sweep():
 
     config = {
         "batch_size": 16,
-        "epochs": 125,
+        "epochs": 25,
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_r": 8,
@@ -339,15 +339,14 @@ def evaluate_model(
     metric: str,
     config: str = None,  # path to config tile TODO: implement
 ):
-    config = {
-        "batch_size": 16,
-        "epochs": 100,
-        "lora_alpha": 32,
-        "lora_dropout": 0.1,
-        "lora_r": 8,
-        "lr": 0.001,
-        "model_name": "roberta-large",
-    }
+    config = js.load(open(f"{trained_model_dir}/config.json","r"))
+    config["batch_size"] = 1
+    quantized_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
     accelerator = Accelerator()
     np.random.seed(40)  # sets a randomization seed for reproducibility
     transformers.set_seed(40)
@@ -376,7 +375,10 @@ def evaluate_model(
         }
     )
     train_val_test_dataset = train_val_test_dataset.remove_columns("set")
-    model = AutoPeftModel.from_pretrained(trained_model_dir, num_labels=1)
+    model = AutoPeftModel.from_pretrained(trained_model_dir, num_labels=1, quantization_config=quantized_config)
+    if "llama" in config["model_name"]:
+        model.config.pad_token_id = model.config.eos_token_id
+    
     tokenizer = AutoTokenizer.from_pretrained(trained_model_dir)
 
     def tokenize_function(examples):
@@ -513,5 +515,5 @@ if __name__ == "__main__":
     # evaluate_model(
     #     "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation/",
     #     "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset3.csv",
-    #     "quality",
+    #     "originality",
     # )
