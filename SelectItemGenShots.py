@@ -1,4 +1,6 @@
 import itertools
+import random
+from config import config
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 from tqdm import tqdm
@@ -12,6 +14,7 @@ def SelectItemGenShots(
     round: int,
     shotSelectionSort: str,
     shotSelectionAggregate: str,
+    seed: int,
     # if not using constraint satisfaction, defaults to a greedy method that just selects items based on originality scores
     useConstraintSatisfaction: bool = False,
 ):
@@ -24,6 +27,7 @@ def SelectItemGenShots(
             round,
             shotSelectionSort,
             shotSelectionAggregate,
+            seed,
         )
     else:
         # use greedy item selection
@@ -31,7 +35,7 @@ def SelectItemGenShots(
             meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(
                 numeric_only=True
             )
-        elif shotSelectionAggregate == "variance":
+        elif shotSelectionAggregate == "var":
             meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").var(
                 numeric_only=True
             )
@@ -58,7 +62,10 @@ def ConstraintSatisfaction(
     round: int,
     shotSelectionSort: str,
     shotSelectionAggregate: str,
-    delta: float = 0.1,
+    seed: int,
+    delta: float = 0.02,
+    sim_gamma: float = 0.001,
+    originality_gamma: float = 0.002,
 ):
     embedding_model = SentenceTransformer(
         "all-MiniLM-L6-v2"
@@ -69,7 +76,7 @@ def ConstraintSatisfaction(
         priorItemPool = pd.read_json(
             f"{itemPool}_round_{round-1}.json", orient="records"
         )
-        
+
         if shotSelectionAggregate == "mean":
             priorMeanItemScores = priorItemPool.groupby(
                 f"creative_scenario_round_{round-1}"
@@ -78,7 +85,7 @@ def ConstraintSatisfaction(
             priorMeanItemScores = priorItemPool.groupby(
                 f"creative_scenario_round_{round-1}"
             ).var(numeric_only=True)
-        
+
         priorMeanItemScores.sort_values(
             by=f"{shotSelectionMetric}_round_{round-1}", ascending=False, inplace=True
         )
@@ -101,7 +108,7 @@ def ConstraintSatisfaction(
         # default to minimum values for the first iteration
         prior_sim_score = 1.0
         prior_originality = -2.0
-    
+
     if shotSelectionAggregate == "mean":
         MeanItemScores = itemPoolDf.groupby(f"creative_scenario_round_{round}").mean(
             numeric_only=True
@@ -110,46 +117,106 @@ def ConstraintSatisfaction(
         MeanItemScores = itemPoolDf.groupby(f"creative_scenario_round_{round}").var(
             numeric_only=True
         )
-    
+
     all_item_combs = list(
         itertools.combinations(MeanItemScores.index.to_list(), itemGenNumShots)
     )
-    for item_comb in tqdm(
-        all_item_combs, total=len(all_item_combs)
-    ):  # dangerous, could run out of memory!
-        item_embeddings = embedding_model.encode(item_comb, convert_to_tensor=True)
-        sims = util.cos_sim(item_embeddings, item_embeddings)
-        # remove the diagonal and keep only the lower triangle since the matrix is symmetric
-        sims = sims.tril().flatten()
 
-        sim_score = sims[sims != 0].cpu().numpy().mean()
-        originality_scores = []
-        for item in item_comb:
-            originality_scores.append(
-                MeanItemScores.loc[item][f"{shotSelectionMetric}_round_{round}"]
+    # every time we fail to locate an optimized item set
+    # we increase the target sim score and decrease the target originality by a factor gamma
+    # unlikely, but it may be that this process repeats until we hit the base case for round 0
+    # if that happens, or if round 0 fails to locate a satisfying item set
+    # we default to the greedy approach
+    with open(config["logFile"], "a") as log:
+        while True:
+            random.Random(seed).shuffle(all_item_combs)
+            cur_item_comb = pd.DataFrame(
+                columns=["item_comb", "sim_score", "originality"]
             )
+            cur_item_comb = cur_item_comb.astype("object")
+            for item_comb in tqdm(all_item_combs, total=len(all_item_combs)):
+                item_embeddings = embedding_model.encode(
+                    item_comb, convert_to_tensor=True
+                )
+                sims = util.cos_sim(item_embeddings, item_embeddings)
+                # remove the diagonal and keep only the lower triangle since the matrix is symmetric
+                sims = sims.tril().flatten()
 
-        originality = mean(
-            originality_scores
-        )  # TODO: need to support other metrics besides mean
+                sim_score = sims[sims != 0].cpu().numpy().mean()
+                originality_scores = []
+                for item in item_comb:
+                    originality_scores.append(
+                        MeanItemScores.loc[item][f"{shotSelectionMetric}_round_{round}"]
+                    )
 
-        print(f"# Sim: {sim_score} Prior Sim: {prior_sim_score} # Score: {originality} Prior Score: {prior_originality} #")
+                originality = mean(originality_scores)
+                items = pd.DataFrame(
+                    {
+                        "originality": originality,
+                        "sim_score": sim_score,
+                        "item_comb": None,
+                    },
+                    index=[0],
+                    dtype="object",
+                )
+                items.at[0, "item_comb"] = list(item_comb)
 
-        if sim_score <= prior_sim_score and (
-            originality >= prior_originality
-            or ((prior_originality - originality) <= delta)
-        ):
-            return item_comb
+                cur_item_comb = pd.concat((cur_item_comb, items))
+                cur_item_comb.reset_index(drop=True, inplace=True)
 
-    # unlikely, but there may not be an item set that satisfies the constraints
-    # default to greedy approach
-    print("Failed to locate item set satisfying constraints, defaulting to greedy selection.")
-    return SelectItemGenShots(
-        itemPool,
-        shotSelectionMetric,
-        itemGenNumShots,
-        round,
-        shotSelectionSort,
-        shotSelectionAggregate,
-        useConstraintSatisfaction=False,
-    )
+                print(
+                    f"# Sim: {sim_score} Prior Sim: {prior_sim_score} # Score: {originality} Prior Score: {prior_originality} #"
+                )
+                log.writelines(
+                    f"# Sim: {sim_score} Prior Sim: {prior_sim_score} # Score: {originality} Prior Score: {prior_originality} #\n"
+                )
+
+                # if sim_score <= prior_sim_score and (
+                #     originality >= prior_originality
+                #     or ((prior_originality - originality) <= delta)
+                # ):
+            matching_items = cur_item_comb.loc[
+                (cur_item_comb["sim_score"] <= prior_sim_score)
+                & (
+                    (cur_item_comb["originality"] >= prior_originality)
+                    | (prior_originality - cur_item_comb["originality"] <= delta)
+                )
+            ]
+
+            if len(matching_items) > 0:
+                matching_items = matching_items.sort_values(
+                    by=["originality"], ascending=False
+                )
+                sim_score = matching_items.iloc[0]["sim_score"]
+                originality = matching_items.iloc[0]["originality"]
+                print(
+                    f"# Sim: {sim_score} Prior Sim: {prior_sim_score} # Score: {originality} Prior Score: {prior_originality} #"
+                )
+                log.writelines(
+                    f"# Sim: {sim_score} Prior Sim: {prior_sim_score} # Score: {originality} Prior Score: {prior_originality} #\n"
+                )
+                return matching_items.iloc[0]["item_comb"]
+
+            # unlikely, but there may not be an item set that satisfies the constraints
+            # default to greedy approach
+            if prior_sim_score >= 1.0 and prior_originality <= 2.0:
+                print(
+                    "Failed to locate item set satisfying constraints, defaulting to greedy selection."
+                )
+                log.writelines(
+                    "Failed to locate item set satisfying constraints, defaulting to greedy selection.\n"
+                )
+                return SelectItemGenShots(
+                    itemPool,
+                    shotSelectionMetric,
+                    itemGenNumShots,
+                    round,
+                    shotSelectionSort,
+                    shotSelectionAggregate,
+                    useConstraintSatisfaction=False,
+                )
+            else:
+                if (prior_originality - originality) > delta:
+                    prior_originality -= originality_gamma
+                if sim_score >= prior_sim_score:
+                    prior_sim_score += sim_gamma
