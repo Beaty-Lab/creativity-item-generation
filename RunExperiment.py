@@ -355,6 +355,8 @@ def RunExperiment(config: dict):
             config["demographicsFile"],
             config["itemResponseGenOutputFile"],
             config["itemResponseGenModelName"],
+            config["numResponsesPerItem"],
+            config["itemResponseGenPromptIdx"],
         )
 
         # evaluate item responses
@@ -385,7 +387,8 @@ def RunExperiment(config: dict):
                 i,
                 config["shotSelectionSort"],
                 config["shotSelectionAggregate"],
-                False,  # TODO make config arg
+                config["random_seed"],
+                config["shotSelectionAlgorithm"],
             )
 
 

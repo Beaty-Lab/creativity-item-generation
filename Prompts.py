@@ -372,4 +372,84 @@ item_gen_prompts = [
         # Dilemma topic:
         # {topic}
     ],
+    [ # 10 - zero shot prompt
+       (
+            "system",
+            """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. At the end of your scenario, write "I am finished with this scenario." UNDER NO CIRCUMSTANCES SHOULD YOU STATE WHAT THE MAIN CHARACTER SHOULD DO, HAS TO DO, IS GOING TO DO, OR WANTS TO DO. LEAVE ALL POSSIBLE SOLUTIONS AMBIGUOUS. DO NOT ASK RHETORICAL QUESTIONS ABOUT WHAT THE MAIN CHARACTER SHOULD DO. Here is a list of rules you should follow when writing the scenario:
+
+                    1. Scenarios should present complex situations with many competing demands or considerations. Avoid scenarios framed as clear-cut dilemmas.
+                    2. Include details that allow for more unique and creative responses beyond the obvious. For example, additional characters or constraints that test-takers can draw from.
+                    3. Balance relationship problems with task/goal-oriented problems. Scenarios that focus purely on relationship issues alone limit solutions. It is permissible to include relationship focused constraints, if they are balanced with more objective or goal-oriented ones.
+                    4. Ensure consistent reading level across scenarios. Avoid unnecessarily complex vocabulary. And ensure that scenarios are no more than 1 paragraph long.
+                    5. Orient scenarios towards adults. Avoid student/school settings.
+                    6. Provide enough background details so the current dilemma is understandable. Scenarios should give test-takers enough to work with to develop multiple possible solutions.
+                    7. Competing goals should be more complex than just preferences or feelings. Include tangible stakes, goals, or external pressures.
+                    8. Do not focus solely on emotions like jealousy or relationships. These limit viable solutions. It is permissible to include emotionally focused constraints, if they are balanced with more objective or goal-oriented ones.
+                    9. Avoid scenarios requiring niche knowledge or experience that may not be equally familiar to all test takers. Scenarios should be universally understandable, and deal with situations and challenges that the large majority of people are likely familiar with. Universal experiences include going to school, being in a relationship, spending time with friends, etc. More niche scenarios could, for example, deal with a hobby only a small fraction of people would participate in, or a life experience present in only a minority of the population. Please err on the side of caution here; if a scenario seems like it would not be relatable to the overwhelming majority participants, it's better to give a lower rating even if you aren't absolutely sure.
+                    10. Do NOT include controversial or emotionally charged topics in the scenarios; these may sway participate responses and result in social desirability biases. Examples of controversial topics include abortion and marijuana use; these and similar topics should NOT be included in scenarios.
+                    11. The best scenarios allow room for a wide range of creative responses beyond the obvious, with interpersonal issues as well as task/goal-related pressures. In other words, the best scenarios are characterized by their ambiguity; they have many possible solutions, and no one solution is clearly better than the others. Scenarios that lead participants towards a "correct" answer, or which implicitly list out possible solutions, should NOT be given a high score.
+                    12. Write ONLY your scenario. Do not write any additional instructions or information. UNDER NO CIRCUMSTANCES SHOULD YOU STATE WHAT THE MAIN CHARACTER SHOULD DO, HAS TO DO, IS GOING TO DO, OR WANTS TO DO. LEAVE ALL POSSIBLE SOLUTIONS AMBIGUOUS. DO NOT ASK RHETORICAL QUESTIONS ABOUT WHAT THE MAIN CHARACTER SHOULD DO.
+                    13. At the end of your scenario, write "I am finished with this scenario."
+                    """,
+        ),  # for the k-shot exemplar method, another human message with example scenarios is added here
+        (
+            "human",
+            """Word list:
+                    {word_list}
+
+                    ###
+
+                    Scenario:""",
+        ), 
+    ],
+]
+
+
+
+item_response_gen_prompts = [
+            [ # baseline
+                (
+                    "system",
+                    "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+                ),
+                (
+                    "human",  # 1
+                    """Scenario:
+                    {creative_scenario}
+
+        ###
+
+        Solution:""",
+                ),
+            ],
+            [ # include demographics (potential bias)
+                (
+                    "system",
+                    "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+                ),
+                (
+                    "human",  # 2
+                    """Scenario:
+                    {creative_scenario}
+
+        ###
+
+        Solution:""",
+                ),
+            ],
+            [ # demographics (less biased) + psychometrics
+                (
+                    "system",
+                    "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+                ),
+                (
+                    "human",  # 3
+                    """Scenario:
+                    {creative_scenario}
+
+        ###
+
+        Solution:""",
+                ),
+            ],
 ]
