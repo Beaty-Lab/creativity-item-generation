@@ -16,10 +16,10 @@ def SelectItemGenShots(
     shotSelectionAggregate: str,
     seed: int,
     # if not using constraint satisfaction, defaults to a greedy method that just selects items based on originality scores
-    useConstraintSatisfaction: bool = False,
+    shotSelectionAlgorithm: str,
 ):
     itemPool = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
-    if useConstraintSatisfaction:
+    if shotSelectionAlgorithm == "constraint satisfaction":
         return ConstraintSatisfaction(
             itemPool,
             shotSelectionMetric,
@@ -29,7 +29,7 @@ def SelectItemGenShots(
             shotSelectionAggregate,
             seed,
         )
-    else:
+    elif shotSelectionAlgorithm == "greedy":
         # use greedy item selection
         if shotSelectionAggregate == "mean":
             meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(
@@ -50,6 +50,12 @@ def SelectItemGenShots(
             )
 
         item_list = meanItemScores.iloc[:itemGenNumShots].index.to_list()
+        return item_list
+    elif shotSelectionAlgorithm == "random":
+        # TODO: implement random shot selection baseline
+        item_list = itemPool.sample(n=itemGenNumShots, random_state=seed)[
+            f"creative_scenario_round_{round}"
+        ].to_list()
         return item_list
 
 
