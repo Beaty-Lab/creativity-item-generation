@@ -5,29 +5,47 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 item_eval_prompts = [  # 1
     [
         SystemMessage(
-            content="""You are a scientist designing an experiment testing for problem solving ability.  Participants will be given scenarios which they must come up with possible solutions for, and it is crucial that these scenarios obey the criteria set out by the study design. Given a scenario written for you by a team member, you will evaluate the quality of the scenario in terms of how well it obeys these criteria:
+            content="""You are a scientist designing an experiment testing for problem solving ability.  Participants will be given scenarios which they must come up with possible solutions for, and it is crucial that these scenarios obey the criteria set out by the study design.
 
-1.  Scenarios should be complex, meaning that they have a number of unique demands. These demands should also be relevant, meaning that they are important to consider when devising a solution and are not pure fluff. Scenarios should NOT be framed as clear-cut dilemmas where participants would only give one possible solution.
+===
+
+Definitions:
+
+A demand is any relevant piece of information in the scenario that the participant can consider in their creative solution. Demands may be addressed in a creative solution; participants are not required to address demands, but ignoring them may lead to lower quality solutions. Examples of demands include:
+
+1. Difficulties to overcome (ex. having to pay rent, heavy traffic going to work).
+2. Limited resources (ex. can only work 10 hours per week, having more social demands than you can meet).
+3. Desires of characters in the scenario (ex. your boss wants you to work night shifts, you want more free time).
+
+Demands are relevant and unique if they provide concrete information useful for a solution. Their inclusion in the scenario should be impactful; they influence possible solutions and are not mere fluff.
+
+Demands are competing if they are relevant but also in opposition to at least one other demand. Trying to satisfy one demand would come at the expense of another. In other words, competing demands cause the scenario to have no clear solution.
+
+===
+
+Given a scenario written for you by a team member, you will evaluate the quality of the scenario in terms of how well it obeys these criteria:
+
+1.  Scenarios should be complex, meaning that they have a number of unique and relevant demands. Scenarios should NOT be framed as clear-cut dilemmas where participants would only give one possible solution. Further, scenarios should not contain excessive superfluous details (fluff).
 2. Scenarios should be difficult. Difficulty is defined in terms of how many demands are in direct competition with each other, such that satisfying a demand comes at the expense of another, and successfully navigating all competing demands requires a highly creative solution. It's not necessary to consider how many other demands one particular demand is competing with, just whether that demand competes with at least one other demand.
-3. Scenarios should be accessible.  Scenarios that require niche knowledge or experience that may not be equally familiar to all test takers, and should be avoided. Scenarios should instead be universally understandable, and deal with situations and challenges that the large majority of people are likely familiar with. Universal experiences include going to school, being in a relationship, spending time with friends, etc. More niche scenarios could, for example, deal with a hobby only a small fraction of people would participate in, or a life experience present in only a minority of the population. Please err on the side of caution here; if a scenario seems like it would not be relatable to the overwhelming majority participants, it's better to give a lower rating even if you aren't absolutely sure.
-4. Scenarios should NOT be controversial. Controversial scenario may sway participant responses and result in social desirability biases. Examples of controversial topics include abortion and marijuana use. In general, any scenario that would impose more than minimal risk to a human subject should be marked as controversial.
+3. Scenarios should be accessible.  Scenarios that require niche or technical knowledge that may not be equally familiar to all test takers should be avoided. Scenarios should instead be universally understandable, and deal with situations and challenges that the large majority of people are likely familiar with. Universal experiences include going to school, social relationship, meeting tight work deadlines, practicing a hobby, etc. Please err on the side of caution here; if you need to Google what something means in a scenario, it is not likely to be accessible. If a scenario seems like it would not be relatable to the overwhelming majority participants, it's better to give a lower rating even if you aren't absolutely sure.
+4. Scenarios should NOT be controversial. Controversial scenario may sway participant responses and result in social desirability biases. Examples of controversial topics include abortion and marijuana use. Highly emotionally charged topics involving risk of death, trauma, etc., also count as controversial. In general, any scenario that would impose more than minimal risk to a human subject should be marked as controversial.
 5. The best scenarios allow room for a wide range of creative responses beyond the obvious, with interpersonal as well as task/goal-related factors. In other words, the best scenarios are characterized by their ambiguity; they have many possible solutions, and no one solution is clearly better than the others. Scenarios that lead participants towards a "correct" answer, or which implicitly list out possible solutions, should NOT be given a high score.
 
 Produce a numerical rating evaluating the quality of the scenario along multiple dimensions:
 
 Complexity
-1 = significantly lacking unique and relevant demands
-2 = lacking unique and relevant demands
-3 = ideal number of unique and relevant demands
-4 = excessive unique and relevant demands
-5 = significantly excessive unique and relevant demands
+1 = way too few unique and relevant demands
+2 = too few unique and relevant demands
+3 = neither too many nor too few unique and relevant demands
+4 = too many unique and relevant demands
+5 = way too many unique and relevant demands
 
 Difficulty
-1 = significantly lacking competing demands
-2 = lacking competing demands
-3 = ideal amount of competing demands
-4 = excessive competing demands
-5 = significantly excessive competing demands
+1 = significantly lacking competition between demands
+2 = lacking competition between demands
+3 = good quality competition between demands
+4 = excessive competition between demands
+5 = significantly excessive competition between demands
 
 Accessibility
 0 = does not require specialized knowledge
@@ -35,9 +53,7 @@ Accessibility
 
 Controversial
 0 = does not include potentially harmful topics
-1 = includes potentially harmful topics
-
-Provide your response in JSON."""
+1 = includes potentially harmful topics"""
         ),
         # HumanMessage(
         #     content="""Scenario:
