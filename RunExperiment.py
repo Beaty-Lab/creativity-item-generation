@@ -104,7 +104,7 @@ def RunExperiment(config: dict):
             )
         elif config["itemGenModelName"] == "claude-3":
             llm = ChatAnthropic(
-                model_name="claude-3-sonnet-20240229",
+                model_name="claude-3-haiku-20240307",
                 max_tokens_to_sample=config["itemGenMaxTokens"],
                 temperature=config["itemGenTemperature"],
                 anthropic_api_key=ANTHROPIC_KEY,
@@ -180,7 +180,7 @@ def RunExperiment(config: dict):
                 )
             elif config["itemEvalModelName"] == "claude-3":
                 llm = ChatAnthropic(
-                    model_name="claude-3-sonnet-20240229",
+                    model_name="claude-3-haiku-20240307",
                     max_tokens_to_sample=config["itemEvalMaxTokens"],
                     temperature=config["itemEvalTemperature"],
                     anthropic_api_key=ANTHROPIC_KEY,
@@ -246,7 +246,7 @@ def RunExperiment(config: dict):
                 )
             elif config["itemResponseGenModelName"] == "claude-3":
                 llm = ChatAnthropic(
-                    model_name="claude-3-sonnet-20240229",
+                    model_name="claude-3-haiku-20240307",
                     max_tokens_to_sample=config["itemGenMaxTokens"],
                     temperature=config["itemGenTemperature"],
                     anthropic_api_key=ANTHROPIC_KEY,

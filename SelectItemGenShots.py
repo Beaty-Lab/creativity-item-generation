@@ -8,7 +8,7 @@ from statistics import mean
 
 
 def SelectItemGenShots(
-    itemPool: pd.DataFrame,
+    itemPool: str,
     shotSelectionMetric: str,
     itemGenNumShots: int,
     round: int,
@@ -18,7 +18,6 @@ def SelectItemGenShots(
     # if not using constraint satisfaction, defaults to a greedy method that just selects items based on originality scores
     shotSelectionAlgorithm: str,
 ):
-    itemPool = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
     if shotSelectionAlgorithm == "constraint satisfaction":
         return ConstraintSatisfaction(
             itemPool,
@@ -30,6 +29,7 @@ def SelectItemGenShots(
             seed,
         )
     elif shotSelectionAlgorithm == "greedy":
+        itemPool = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
         # use greedy item selection
         if shotSelectionAggregate == "mean":
             meanItemScores = itemPool.groupby(f"creative_scenario_round_{round}").mean(
@@ -53,16 +53,19 @@ def SelectItemGenShots(
         return item_list
     elif shotSelectionAlgorithm == "random":
         # TODO: implement random shot selection baseline
+        itemPool = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
         item_list = itemPool.sample(n=itemGenNumShots, random_state=seed)[
             f"creative_scenario_round_{round}"
         ].to_list()
         return item_list
+    elif shotSelectionAlgorithm == "zero shot":
+        return []
 
 
 # debug constrained optimization of item gen selection using results from prior greedy runs
 # will always use the greedy selection from the prior round to seed the select paramters
 def ConstraintSatisfaction(
-    itemPool: pd.DataFrame,
+    itemPool: str,
     shotSelectionMetric: str,
     itemGenNumShots: int,
     round: int,
