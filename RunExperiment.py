@@ -84,7 +84,7 @@ def RunExperiment(config: dict):
                 "frequency_penalty": config["itemGenFrequencyPenalty"],
                 "presence_penalty": config["itemGenPresencePenalty"],
             }
-            llm = ChatOpenAI(
+            item_gen_llm = ChatOpenAI(
                 model_name=config["itemGenModelName"],
                 openai_api_key=OPENAI_KEY,
                 temperature=config["itemGenTemperature"],
@@ -93,7 +93,7 @@ def RunExperiment(config: dict):
             )
         elif config["itemGenModelName"] == "google":
             # gemini doesn't have a frequency or presence penalty
-            llm = ChatGoogleGenerativeAI(
+            item_gen_llm = ChatGoogleGenerativeAI(
                 model="gemini-pro",
                 convert_system_message_to_human=True,
                 google_api_key=GEMINI_KEY,
@@ -103,7 +103,7 @@ def RunExperiment(config: dict):
                 max_retries=1,
             )
         elif config["itemGenModelName"] == "claude-3":
-            llm = ChatAnthropic(
+            item_gen_llm = ChatAnthropic(
                 model_name="claude-3-haiku-20240307",
                 max_tokens_to_sample=config["itemGenMaxTokens"],
                 temperature=config["itemGenTemperature"],
@@ -139,7 +139,7 @@ def RunExperiment(config: dict):
                 max_new_tokens=config["itemGenMaxTokens"],
                 model_kwargs=model_kwargs,
             )
-            llm = HuggingFacePipeline(pipeline=pipeline)
+            item_gen_llm = HuggingFacePipeline(pipeline=pipeline)
 
     except Exception as e:
         with open(config["logFile"], "a") as log:
@@ -161,7 +161,7 @@ def RunExperiment(config: dict):
                     "frequency_penalty": config["itemEvalFrequencyPenalty"],
                     "presence_penalty": config["itemEvalPresencePenalty"],
                 }
-                llm = ChatOpenAI(
+                item_eval_llm = ChatOpenAI(
                     model_name=config["itemEvalModelName"],
                     openai_api_key=OPENAI_KEY,
                     temperature=config["itemEvalTemperature"],
@@ -169,7 +169,7 @@ def RunExperiment(config: dict):
                     model_kwargs=model_kwargs,
                 )
             elif config["itemEvalModelName"] == "google":
-                llm = ChatGoogleGenerativeAI(
+                item_eval_llm = ChatGoogleGenerativeAI(
                     model="gemini-pro",
                     convert_system_message_to_human=True,
                     google_api_key=GEMINI_KEY,
@@ -179,7 +179,7 @@ def RunExperiment(config: dict):
                     max_retries=1,
                 )
             elif config["itemEvalModelName"] == "claude-3":
-                llm = ChatAnthropic(
+                item_eval_llm = ChatAnthropic(
                     model_name="claude-3-haiku-20240307",
                     max_tokens_to_sample=config["itemEvalMaxTokens"],
                     temperature=config["itemEvalTemperature"],
@@ -209,7 +209,7 @@ def RunExperiment(config: dict):
                     max_new_tokens=config["itemEvalMaxTokens"],
                     model_kwargs=model_kwargs,
                 )
-                llm = HuggingFacePipeline(pipeline=pipeline)
+                item_eval_llm = HuggingFacePipeline(pipeline=pipeline)
 
         except Exception as e:
             with open(config["logFile"], "a") as log:
@@ -217,70 +217,72 @@ def RunExperiment(config: dict):
                 log.writelines(str(e)+"\n")
             exit(-1)
 
-        try:
-            if (
-                config["itemResponseGenModelName"] == "gpt-4"
-                or config["itemResponseGenModelName"] == "gpt-3.5-turbo"
-            ):
-                model_kwargs = {
-                    "top_p": config["itemResponseGenTopP"],
-                    "frequency_penalty": config["itemResponseGenFrequencyPenalty"],
-                    "presence_penalty": config["itemResponseGenPresencePenalty"],
-                }
-                llm = ChatOpenAI(
-                    model_name=config["itemResponseGenModelName"],
-                    openai_api_key=OPENAI_KEY,
-                    temperature=config["itemResponseGenTemperature"],
-                    max_tokens=config["itemResponseGenMaxTokens"],
-                    model_kwargs=model_kwargs,
-                )
-            elif config["itemResponseGenModelName"] == "google":
-                llm = ChatGoogleGenerativeAI(
-                    model="gemini-pro",
-                    convert_system_message_to_human=True,
-                    google_api_key=GEMINI_KEY,
-                    temperature=config["itemGenTemperature"],
-                    top_p=config["itemGenTopP"],
-                    max_output_tokens=config["itemGenMaxTokens"],
-                    max_retries=1,
-                )
-            elif config["itemResponseGenModelName"] == "claude-3":
-                llm = ChatAnthropic(
-                    model_name="claude-3-haiku-20240307",
-                    max_tokens_to_sample=config["itemGenMaxTokens"],
-                    temperature=config["itemGenTemperature"],
-                    anthropic_api_key=ANTHROPIC_KEY,
-                )
-            else:
-                model_kwargs = {
-                    "top_p": config["itemResponseGenTopP"],
-                    "temperature": config["itemResponseGenTemperature"],
-                    "device_map": "auto",
-                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-                }
-                tokenizer = AutoTokenizer.from_pretrained(
-                    config["itemResponseGenModelName"], **model_kwargs
-                )
-                model = AutoModelForCausalLM.from_pretrained(
-                    config["itemResponseGenModelName"],
-                    load_in_4bit=True,
-                    **model_kwargs,
-                )
+    try:
+        if config["itemGenModelName"] == config["itemResponseGenModelName"]:
+            item_response_llm = item_gen_llm
+        elif (
+            config["itemResponseGenModelName"] == "gpt-4"
+            or config["itemResponseGenModelName"] == "gpt-3.5-turbo"
+        ):
+            model_kwargs = {
+                "top_p": config["itemResponseGenTopP"],
+                "frequency_penalty": config["itemResponseGenFrequencyPenalty"],
+                "presence_penalty": config["itemResponseGenPresencePenalty"],
+            }
+            item_response_llm = ChatOpenAI(
+                model_name=config["itemResponseGenModelName"],
+                openai_api_key=OPENAI_KEY,
+                temperature=config["itemResponseGenTemperature"],
+                max_tokens=config["itemResponseGenMaxTokens"],
+                model_kwargs=model_kwargs,
+            )
+        elif config["itemResponseGenModelName"] == "google":
+            item_response_llm = ChatGoogleGenerativeAI(
+                model="gemini-pro",
+                convert_system_message_to_human=True,
+                google_api_key=GEMINI_KEY,
+                temperature=config["itemGenTemperature"],
+                top_p=config["itemGenTopP"],
+                max_output_tokens=config["itemGenMaxTokens"],
+                max_retries=1,
+            )
+        elif config["itemResponseGenModelName"] == "claude-3":
+            item_response_llm = ChatAnthropic(
+                model_name="claude-3-haiku-20240307",
+                max_tokens_to_sample=config["itemGenMaxTokens"],
+                temperature=config["itemGenTemperature"],
+                anthropic_api_key=ANTHROPIC_KEY,
+            )
+        else:
+            model_kwargs = {
+                "top_p": config["itemResponseGenTopP"],
+                "temperature": config["itemResponseGenTemperature"],
+                "device_map": "auto",
+                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+            }
+            tokenizer = AutoTokenizer.from_pretrained(
+                config["itemResponseGenModelName"], **model_kwargs
+            )
+            model = AutoModelForCausalLM.from_pretrained(
+                config["itemResponseGenModelName"],
+                load_in_4bit=True,
+                **model_kwargs,
+            )
 
-                pipeline = hf_pipeline(
-                    task="text-generation",
-                    model=model,
-                    tokenizer=tokenizer,
-                    batch_size=1,
-                    max_new_tokens=config["itemResponseGenMaxTokens"],
-                    model_kwargs=model_kwargs,
-                )
-                llm = HuggingFacePipeline(pipeline=pipeline)
-        except Exception as e:
-            with open(config["logFile"], "a") as log:
-                print(e)
-                log.writelines(str(e)+"\n")
-            exit(-1)
+            pipeline = hf_pipeline(
+                task="text-generation",
+                model=model,
+                tokenizer=tokenizer,
+                batch_size=1,
+                max_new_tokens=config["itemResponseGenMaxTokens"],
+                model_kwargs=model_kwargs,
+            )
+            item_response_llm = HuggingFacePipeline(pipeline=pipeline)
+    except Exception as e:
+        with open(config["logFile"], "a") as log:
+            print(e)
+            log.writelines(str(e)+"\n")
+        exit(-1)
 
     for i in range(config["numIter"]):
         with open(config["logFile"], "a") as log:
@@ -293,7 +295,7 @@ def RunExperiment(config: dict):
             ItemGeneration.create_scenarios(
                 config["itemGenPromptIdx"],
                 config["itemGenModelName"],
-                llm,
+                item_gen_llm,
                 i,  # round
                 config["itemGenMaxTokens"],
                 config["itemGenPresencePenalty"],
@@ -309,7 +311,7 @@ def RunExperiment(config: dict):
             ItemGeneration.create_scenarios(
                 config["itemGenPromptIdx"],
                 config["itemGenModelName"],
-                llm,
+                item_gen_llm,
                 i,  # round
                 config["itemGenMaxTokens"],
                 config["itemGenPresencePenalty"],
@@ -330,7 +332,7 @@ def RunExperiment(config: dict):
                 config["itemEvalPromptIdx"],
                 config["itemEvalOutputFile"],
                 config["itemEvalModelName"],
-                llm,
+                item_eval_llm,
                 i,  # round
                 f"creative_scenario_round_{i}",
                 config["itemEvalOutputFile"],
@@ -349,7 +351,7 @@ def RunExperiment(config: dict):
 
         # TODO: whether or not item eval was used should be check to make sure the correct file is updated.
         GenerateCPSResponses.create_scenario_responses(
-            llm,
+            item_response_llm,
             i,  # round
             config["itemGenOutputFile"],
             config["demographicsFile"],
