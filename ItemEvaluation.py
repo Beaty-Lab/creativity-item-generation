@@ -147,14 +147,12 @@ if __name__ == "__main__":
 
         else:
             model_kwargs = {
-            "top_p": top_p,
-            "temperature": temperature,
-            "device_map": "auto",
-            # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                "top_p": top_p,
+                "temperature": temperature,
+                "device_map": "auto",
+                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
             }
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_name, **model_kwargs
-            )
+            tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
             model = AutoModelForCausalLM.from_pretrained(
                 model_name, load_in_4bit=True, **model_kwargs
             )

@@ -344,7 +344,7 @@ item_gen_prompts = [
         ),
     ],
     [  # 9, including the evaluation scale (for LLM feedback)
-       # TODO: load the human items from a dataset
+        # TODO: load the human items from a dataset
         (
             "system",
             """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. At the end of your scenario, write "I am finished with this scenario." UNDER NO CIRCUMSTANCES SHOULD YOU STATE WHAT THE MAIN CHARACTER SHOULD DO, HAS TO DO, IS GOING TO DO, OR WANTS TO DO. LEAVE ALL POSSIBLE SOLUTIONS AMBIGUOUS. DO NOT ASK RHETORICAL QUESTIONS ABOUT WHAT THE MAIN CHARACTER SHOULD DO. Here is a list of rules you should follow when writing the scenario:
@@ -388,8 +388,8 @@ item_gen_prompts = [
         # Dilemma topic:
         # {topic}
     ],
-    [ # 10 - zero shot prompt
-       (
+    [  # 10 - zero shot prompt
+        (
             "system",
             """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. At the end of your scenario, write "I am finished with this scenario." UNDER NO CIRCUMSTANCES SHOULD YOU STATE WHAT THE MAIN CHARACTER SHOULD DO, HAS TO DO, IS GOING TO DO, OR WANTS TO DO. LEAVE ALL POSSIBLE SOLUTIONS AMBIGUOUS. DO NOT ASK RHETORICAL QUESTIONS ABOUT WHAT THE MAIN CHARACTER SHOULD DO. Here is a list of rules you should follow when writing the scenario:
 
@@ -416,56 +416,55 @@ item_gen_prompts = [
                     ###
 
                     Scenario:""",
-        ), 
+        ),
     ],
 ]
 
 
-
 item_response_gen_prompts = [
-            [ # baseline
-                (
-                    "system",
-                    "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
-                ),
-                (
-                    "human",  # 1
-                    """Scenario:
+    [  # baseline
+        (
+            "system",
+            "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+        ),
+        (
+            "human",  # 1
+            """Scenario:
                     {creative_scenario}
 
         ###
 
         Solution:""",
-                ),
-            ],
-            [ # include demographics (potential bias)
-                (
-                    "system",
-                    "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
-                ),
-                (
-                    "human",  # 2
-                    """Scenario:
+        ),
+    ],
+    [  # include demographics (potential bias)
+        (
+            "system",
+            "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+        ),
+        (
+            "human",  # 2
+            """Scenario:
                     {creative_scenario}
 
         ###
 
         Solution:""",
-                ),
-            ],
-            [ # demographics (less biased) + psychometrics
-                (
-                    "system",
-                    "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
-                ),
-                (
-                    "human",  # 3
-                    """Scenario:
+        ),
+    ],
+    [  # demographics (less biased) + psychometrics
+        (
+            "system",
+            "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+        ),
+        (
+            "human",  # 3
+            """Scenario:
                     {creative_scenario}
 
         ###
 
         Solution:""",
-                ),
-            ],
+        ),
+    ],
 ]

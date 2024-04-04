@@ -165,7 +165,7 @@ def create_scenario_responses(
                 # especially for gemini models, the prompt may be blocked due to the safety filters
                 # in those cases, skip and move on
                 try:
-                    if prompt_idx == 1: # demographics (biased)
+                    if prompt_idx == 1:  # demographics (biased)
                         result = test_creative_response(
                             row[f"creative_scenario_round_{round}"],
                             prompt_idx,  # prompt_idx
@@ -193,13 +193,15 @@ def create_scenario_responses(
                             participant["LastName"].values[0],
                             participant["Occupation"].values[0],
                             participant["Field"].values[0],
-                            participant["Psychometric"].values[0] # psychometric traits
+                            participant["Psychometric"].values[
+                                0
+                            ],  # psychometric traits
                         )
                     print(result)
                 except Exception as e:
                     with open(config["logFile"], "a") as log:
                         print(e)
-                        log.writelines(str(e)+"\n")
+                        log.writelines(str(e) + "\n")
                     continue
             else:
                 try:
@@ -212,7 +214,7 @@ def create_scenario_responses(
                 except Exception as e:
                     with open(config["logFile"], "a") as log:
                         print(e)
-                        log.writelines(str(e)+"\n")
+                        log.writelines(str(e) + "\n")
                     continue
 
             if demographics_file is not None:
@@ -250,7 +252,9 @@ def create_scenario_responses(
                                     "LastName": participant["LastName"].values[0],
                                     "Occupation": participant["Occupation"].values[0],
                                     "Field": participant["Field"].values[0],
-                                    "Psychometric": participant["Psychometric"].values[0],
+                                    "Psychometric": participant["Psychometric"].values[
+                                        0
+                                    ],
                                 },
                                 index=[0],
                             ),

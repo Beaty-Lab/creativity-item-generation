@@ -1,11 +1,10 @@
 config = {
-
-    "random_seed": 777,
+    "random_seed": 999,
     "numIter": 5,
-    "itemGenModelName": "meta-llama/Llama-2-70b-chat-hf",
+    "itemGenModelName": "claude-3",
     "useItemEvalModel": False,
     "useItemResponseEvalModel": True,
-    "itemEvalModelName": "meta-llama/Llama-2-70b-chat-hf",
+    "itemEvalModelName": "claude-3",
     "itemResponseGenModelName": "meta-llama/Llama-2-7b-chat-hf",
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
@@ -21,22 +20,24 @@ config = {
     "itemResponseGenTopP": 1.0,
     "itemGenPromptIdx": 8,
     "itemEvalPromptIdx": 0,
-    "itemResponseGenPromptIdx": 0,
+    "itemResponseGenPromptIdx": 2,
     "itemGenMaxTokens": 768,
     "itemEvalMaxTokens": 2048,
     "itemResponseGenMaxTokens": 350,
-    "wordlistFile": "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",
-    "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/DemographicData.csv",
-    "itemGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_70b_item_gen_llama_70b_eval_max_gen_tokens_350_4_exemplars_mean_seed_777/items.json",
-    "itemEvalOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_70b_item_gen_llama_70b_eval_max_gen_tokens_350_4_exemplars_mean_seed_777/items.json",
-    "itemResponseGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_70b_item_gen_llama_70b_eval_max_gen_tokens_350_4_exemplars_mean_seed_777/item_responses", # should NOT be the same as the top 2
-    "numItemsPerList": 3, # TODO: no longer used
-    "numItemGenerationAttempts": 3, # this value times 3
-    "itemResponseOriginalityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
-    "itemResponseQualityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
-    "shotSelectionMetric": "originality", # the metric used to select which items lead to consistently good responses
-    "itemGenNumShots": 4,                 # how many shots from the i-th trial to include in the i+1th trial
-    "shotSelectionSort": "max",           # how to select the shots to use based on the metric, either "max" or "min" 
+    "wordlistFile": "./creativity-item-generation/outputs/creative_wordlist_5_words.tsv",
+    "demographicsFile": "./creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
+    "itemGenOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/items.json",
+    "itemEvalOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/items.json",
+    "itemResponseGenOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/item_responses",
+    "numItemsPerList": 3,
+    "numItemGenerationAttempts": 3,
+    "itemResponseOriginalityModelDir": "./creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
+    "itemResponseQualityModelDir": "./creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
+    "shotSelectionMetric": "originality",
+    "itemGenNumShots": 4,
+    "shotSelectionSort": "max",
     "shotSelectionAggregate": "mean",
-    "logFile": "/home/aml7990/Code/creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/llama_70b_item_gen_llama_70b_eval_max_gen_tokens_350_4_exemplars_mean_seed_777/log.txt"
+    "shotSelectionAlgorithm": "constraint satisfaction",
+    "logFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/log.txt",
+    "numResponsesPerItem": 20,
 }
