@@ -144,7 +144,7 @@ def RunExperiment(config: dict):
     except Exception as e:
         with open(config["logFile"], "a") as log:
             print(e)
-            log.writelines(str(e)+"\n")
+            log.writelines(str(e) + "\n")
         exit(-1)
 
     if config["useItemEvalModel"]:
@@ -214,7 +214,7 @@ def RunExperiment(config: dict):
         except Exception as e:
             with open(config["logFile"], "a") as log:
                 print(e)
-                log.writelines(str(e)+"\n")
+                log.writelines(str(e) + "\n")
             exit(-1)
 
     try:
@@ -281,7 +281,7 @@ def RunExperiment(config: dict):
     except Exception as e:
         with open(config["logFile"], "a") as log:
             print(e)
-            log.writelines(str(e)+"\n")
+            log.writelines(str(e) + "\n")
         exit(-1)
 
     for i in range(config["numIter"]):

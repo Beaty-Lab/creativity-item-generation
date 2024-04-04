@@ -20,7 +20,7 @@ from accelerate import Accelerator
 import time
 import transformers
 from argparse import ArgumentParser
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, pearsonr
 from peft import LoraConfig, TaskType, get_peft_model
 import json as js
 from transformers import (
@@ -28,7 +28,7 @@ from transformers import (
     TrainerControl,
     TrainerCallback,
     BitsAndBytesConfig,
-    DataCollatorWithPadding
+    DataCollatorWithPadding,
 )
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
@@ -185,7 +185,7 @@ def train_model_no_sweep():
 
     config = {
         "batch_size": 16,
-        "epochs": 25,
+        "epochs": 15,
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_r": 8,
@@ -254,7 +254,11 @@ def train_model_no_sweep():
     train_val_test_dataset = train_val_test_dataset.remove_columns("set")
     # SET UP MODEL & TOKENIZER
     model = AutoModelForSequenceClassification.from_pretrained(
-        config["model_name"], num_labels=1, quantization_config=quantized_config, trust_remote_code=True, device_map="auto"
+        config["model_name"],
+        num_labels=1,
+        quantization_config=quantized_config,
+        trust_remote_code=True,
+        device_map="auto",
     )  # labels = 1 is for regression
 
     if "llama" in config["model_name"]:
@@ -272,7 +276,9 @@ def train_model_no_sweep():
 
     #  DEFINE WRAPPER TOKENIZER FUNCTION (FOR BATCH TRAINING)
     def tokenize_function(examples):
-        return tokenizer(examples["text"], truncation=True, padding=True, max_length=512)
+        return tokenizer(
+            examples["text"], truncation=True, padding=True, max_length=512
+        )
 
     tokenized_datasets = train_val_test_dataset.map(
         tokenize_function, batched=True
@@ -287,7 +293,9 @@ def train_model_no_sweep():
     def compute_metrics(eval_preds):
         predictions, references = eval_preds
         mse_metric = evaluate.load("mse")
-        return {"mse": mse_metric.compute(predictions=predictions, references=references)}
+        return {
+            "mse": mse_metric.compute(predictions=predictions, references=references)
+        }
 
     training_args = TrainingArguments(
         output_dir=f"{output_dir}/scoring_model_evaluation",
@@ -302,7 +310,7 @@ def train_model_no_sweep():
         do_eval=True,
         save_total_limit=1,
         report_to="none",
-        remove_unused_columns=False
+        remove_unused_columns=False,
     )
 
     trainer = accelerator.prepare(
@@ -310,20 +318,20 @@ def train_model_no_sweep():
             model=model,
             args=training_args,
             train_dataset=tokenized_datasets["train"],
-            eval_dataset=tokenized_datasets["heldout"],
+            eval_dataset=tokenized_datasets["test"],
             compute_metrics=compute_metrics,
             tokenizer=tokenizer,
-            data_collator=data_collator
+            data_collator=data_collator,
         )
     )
 
     result = trainer.train()
-    prediction = trainer.predict(tokenized_datasets["heldout"])
+    prediction = trainer.predict(tokenized_datasets["test"])
     mse_metric = evaluate.load("mse")
     print(
         mse_metric.compute(
             predictions=prediction.predictions[1],
-            references=tokenized_datasets["heldout"]["labels"],
+            references=tokenized_datasets["test"]["labels"],
         )
     )
 
@@ -339,7 +347,7 @@ def evaluate_model(
     metric: str,
     config: str = None,  # path to config tile TODO: implement
 ):
-    config = js.load(open(f"{trained_model_dir}/config.json","r"))
+    config = js.load(open(f"{trained_model_dir}/config.json", "r"))
     config["batch_size"] = 1
     quantized_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -359,7 +367,7 @@ def evaluate_model(
     d["text"] = d["inputs"]
 
     if metric == "originality":
-        y_test = d["FacScoresO"].to_numpy()
+        y_test = d[d["set"] == "test"]["FacScoresO"].to_numpy()
 
     elif metric == "quality":
         y_test = d["FacScoresQ"].to_numpy()
@@ -369,22 +377,29 @@ def evaluate_model(
         d_input, preserve_index=False
     )  # Turns pandas data into huggingface/pytorch dataset
 
+    # train_val_test_dataset = DatasetDict(
+    #     {
+    #         "test": dataset.filter(lambda example: example["set"] == "test"),
+    #     }
+    # )
     train_val_test_dataset = DatasetDict(
         {
             "test": dataset.filter(lambda example: example["set"] == "test"),
         }
     )
     train_val_test_dataset = train_val_test_dataset.remove_columns("set")
-    model = AutoPeftModel.from_pretrained(trained_model_dir, num_labels=1, quantization_config=quantized_config)
+    model = AutoPeftModel.from_pretrained(
+        trained_model_dir, num_labels=1, quantization_config=quantized_config
+    )
     if "llama" in config["model_name"]:
         model.config.pad_token_id = model.config.eos_token_id
-    
+
     tokenizer = AutoTokenizer.from_pretrained(trained_model_dir)
 
     def tokenize_function(examples):
         return tokenizer(examples["text"], truncation=True, padding="max_length")
 
-    tokenized_datasets = dataset.map(
+    tokenized_datasets = train_val_test_dataset.map(
         tokenize_function, batched=True
     )  # applies wrapper to our dataset
 
@@ -396,7 +411,7 @@ def evaluate_model(
         return mse
 
     training_args = TrainingArguments(
-        output_dir="/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation",
+        output_dir="/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/llama-7b-peft-quantized-originality",
         learning_rate=config["lr"],
         num_train_epochs=config["epochs"],
         per_device_train_batch_size=config["batch_size"],
@@ -419,8 +434,9 @@ def evaluate_model(
         )
     )
 
-    prediction = trainer.predict(tokenized_datasets)
-    print(spearmanr(prediction.predictions, y_test))
+    prediction = trainer.predict(tokenized_datasets["test"])
+    prediction = np.squeeze(prediction.predictions, axis=1)
+    print(pearsonr(prediction, y_test))
 
 
 # use the trained autoscorer to get results on new item responses
@@ -505,15 +521,13 @@ def predict_with_model(
     }
     save_file[f"{prediction_name}_round_{round}"] = test_data[prediction_name]
     save_file.to_json(f"{item_responses}_round_{round}.json")
-    # dataset_test_df = pd.DataFrame(test_data)
-    # dataset_test_df.to_json(item_responses)
 
 
 # TODO: don't want to have to change this manually
 if __name__ == "__main__":
-    train_model_no_sweep()
-    # evaluate_model(
-    #     "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation/",
-    #     "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset3.csv",
-    #     "originality",
-    # )
+    # train_model_no_sweep()
+    evaluate_model(
+        "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/llama-7b-peft-quantized-originality",
+        "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/CPSTfulldataset3.csv",
+        "originality",
+    )

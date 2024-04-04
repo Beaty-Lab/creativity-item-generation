@@ -382,7 +382,7 @@ def create_scenarios(
             except Exception as e:
                 with open(config["logFile"], "a") as log:
                     print(e)
-                    log.writelines(str(e)+"\n")
+                    log.writelines(str(e) + "\n")
                 result = np.nan
                 prompt = np.nan
                 continue
@@ -398,9 +398,7 @@ def create_scenarios(
         input_file = input_file[
             input_file[f"creative_scenario_round_{round}"] != "None"
         ]
-        input_file = input_file[
-            input_file[f"creative_scenario_round_{round}"] != ""
-        ]
+        input_file = input_file[input_file[f"creative_scenario_round_{round}"] != ""]
         input_file = input_file[input_file[f"creative_scenario_round_{round}"] != None]
         input_file.dropna(subset=f"creative_scenario_round_{round}", inplace=True)
         input_file.to_json(itemGenOutputFile, orient="records")
@@ -441,7 +439,7 @@ def create_scenarios(
             except Exception as e:
                 with open(config["logFile"], "a") as log:
                     print(e)
-                    log.writelines(str(e)+"\n")
+                    log.writelines(str(e) + "\n")
                 result = np.nan
                 prompt = np.nan
                 continue
