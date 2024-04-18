@@ -4,19 +4,8 @@ import re
 import pandas as pd
 from config import config
 
-# OpenAI
-from langchain.chat_models import ChatOpenAI
+
 from langchain.prompts.chat import _convert_to_message
-
-# HF
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-)
-from transformers import pipeline as hf_pipeline
-
-
 from langchain.schema import BaseOutputParser, StrOutputParser, OutputParserException
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain.output_parsers import RetryOutputParser
@@ -27,7 +16,6 @@ from langchain.prompts.chat import ChatPromptTemplate
 from key import OPENAI_KEY
 from tqdm import tqdm
 from readability import Readability
-from argparse import ArgumentParser
 from nltk import word_tokenize
 
 from Prompts import item_gen_prompts, wordlist_gen_prompts
@@ -482,85 +470,3 @@ def create_scenarios(
         )
     else:
         print("Unsupported combination of arguments!")
-
-
-# test prompt X number of times, and save in df
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--model_name", type=str)
-    parser.add_argument("--task", type=str)
-    parser.add_argument("--temperature", type=float)
-    parser.add_argument("--top_p", type=float)
-    parser.add_argument("--frequency_penalty", type=float)
-    parser.add_argument("--presence_penalty", type=float)
-    parser.add_argument("--prompt_idx", type=int)
-    parser.add_argument("--max_tokens", type=int)
-    parser.add_argument("--output_file", type=str)
-    parser.add_argument("--batch_size", type=int)
-    parser.add_argument("--input_file", type=str, default=None)
-    parser.add_argument("--wordlist_file", type=str, default=None)
-    parser = parser.parse_args()
-    try:
-        task = parser.task
-        model_name = parser.model_name
-        temperature = parser.temperature
-        max_tokens = parser.max_tokens
-        top_p = parser.top_p
-        frequency_penalty = parser.frequency_penalty
-        presence_penalty = parser.presence_penalty
-        batch_size = parser.batch_size
-        input_file = parser.input_file
-        wordlist_file = parser.wordlist_file
-        if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
-            model_kwargs = {
-                "top_p": top_p,
-                "frequency_penalty": frequency_penalty,
-                "presence_penalty": presence_penalty,
-            }
-            llm = ChatOpenAI(
-                model_name=model_name,
-                openai_api_key=OPENAI_KEY,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                model_kwargs=model_kwargs,
-            )
-        else:
-            model_kwargs = {
-                "top_p": top_p,
-                "temperature": temperature,
-                "device_map": "auto",
-                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-            }
-            tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name, load_in_8bit=True, **model_kwargs
-            )
-            pipeline = hf_pipeline(
-                task="text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                batch_size=batch_size,
-                max_new_tokens=max_tokens,
-                model_kwargs=model_kwargs,
-            )
-            llm = HuggingFacePipeline(pipeline=pipeline)
-
-    except Exception:
-        print("Model failed to initialize. Please check your API key.")
-        exit(-1)
-    # scenario generation should be done using the driver script, not from here
-    # if task == "scenario_generation":
-    #     create_scenarios(
-    #         parser.prompt_idx,
-    #         parser.output_file,
-    #         parser.model_name,
-    #         llm,
-    #         input_file,
-    #         wordlist_file,
-    #         presence_penalty=presence_penalty,
-    #     )
-    if task == "wordlist generation":
-        create_wordlists(parser.prompt_idx, parser.output_file, llm)
-    else:
-        print("Not a valid task name!")
-        exit(-1)

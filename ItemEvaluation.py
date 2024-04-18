@@ -9,23 +9,11 @@ import config
 # OpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import BaseOutputParser
-from langchain.prompts.chat import ChatPromptTemplate
-
-# HF
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-)
-from transformers import pipeline as hf_pipeline
 
 # API key stored in key.py, and should NOT be committed
 # TODO: add support for other api models called directly from this script
 from key import OPENAI_KEY
 from tqdm import tqdm
-from random import randint
-from argparse import ArgumentParser
-from nltk import word_tokenize
 
 from Prompts import item_eval_prompts
 
@@ -108,79 +96,3 @@ def evaluate_scenarios(
     scenarios.to_json(
         itemEvalOutputFile,
     )
-
-
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--model_name", type=str)  # the LLM used to evaluate items
-    parser.add_argument("--task", type=str)
-    parser.add_argument("--top_p", type=float)
-    parser.add_argument("--frequency_penalty", type=float)
-    parser.add_argument("--presence_penalty", type=float)
-    parser.add_argument("--prompt_idx", type=int)
-    parser.add_argument("--max_tokens", type=int)
-    parser.add_argument("--output_file", type=str)  # the prefix to the output file name
-    parser.add_argument("--round", type=int)
-    parser.add_argument("--scenario_col", type=str)
-    parser = parser.parse_args()
-    try:
-        task = parser.task
-        model_name = parser.model_name
-        temperature = 0  # output should be as close to deterministic as possible
-        max_tokens = parser.max_tokens
-        top_p = parser.top_p
-        frequency_penalty = parser.frequency_penalty
-        presence_penalty = parser.presence_penalty
-        if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
-            model_kwargs = {
-                "top_p": top_p,
-                "frequency_penalty": frequency_penalty,
-                "presence_penalty": presence_penalty,
-            }
-            llm = ChatOpenAI(
-                model_name=model_name,
-                openai_api_key=OPENAI_KEY,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                model_kwargs=model_kwargs,
-            )
-
-        else:
-            model_kwargs = {
-                "top_p": top_p,
-                "temperature": temperature,
-                "device_map": "auto",
-                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-            }
-            tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name, load_in_4bit=True, **model_kwargs
-            )
-            pipeline = hf_pipeline(
-                task="text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                batch_size=1,
-                max_new_tokens=max_tokens,
-                model_kwargs=model_kwargs,
-            )
-            llm = HuggingFacePipeline(pipeline=pipeline)
-
-    except Exception:
-        print("Model failed to initialize. Please check your API key.")
-        exit(-1)
-    if task == "evaluate_CPS":
-        evaluate_scenarios(
-            parser.prompt_idx,
-            parser.output_file,
-            parser.model_name,
-            llm,
-            parser.round,
-            parser.scenario_col,
-        )
-    elif task == "evaluate_consequences":
-        print("Consequences eval not implemented!")
-        exit(-1)
-    else:
-        print("Not a valid task name!")
-        exit(-1)

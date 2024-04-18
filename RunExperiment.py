@@ -48,6 +48,9 @@ from transformers import (
 )
 from transformers import pipeline as hf_pipeline
 
+from ctransformers import AutoModelForCausalLM as CAutoModel
+from ctransformers import AutoTokenizer as CTokenizer
+
 
 """
 A function to run an AIG trial. Only LLama and OpenAI models should be used.
@@ -74,7 +77,7 @@ def RunExperiment(config: dict):
         log.writelines("Starting Trial...\n")
 
     try:
-        # load item gen model
+    # load item gen model
         if (
             config["itemGenModelName"] == "gpt-4"
             or config["itemGenModelName"] == "gpt-3.5-turbo"
@@ -110,26 +113,41 @@ def RunExperiment(config: dict):
                 anthropic_api_key=ANTHROPIC_KEY,
             )
         else:
-            model_kwargs = {
-                "top_p": config["itemGenTopP"],
-                "temperature": config["itemGenTemperature"],
-                "device_map": "auto",
-                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-            }
-            tokenizer = AutoTokenizer.from_pretrained(
-                config["itemGenModelName"], **model_kwargs
-            )
-            # TODO:Some modules are dispatched on the CPU or the disk. Make sure you have enough GPU RAM to fit
-            # the quantized model. If you want to dispatch the model on the CPU or the disk while keeping
-            # these modules in 32-bit, you need to set `load_in_8bit_fp32_cpu_offload=True` and pass a custom
-            # `device_map` to `from_pretrained`. Check
-            # https://huggingface.co/docs/transformers/main/en/main_classes/quantization#offload-between-cpu-and-gpu
-            # for more details.
-            model = AutoModelForCausalLM.from_pretrained(
-                config["itemGenModelName"],
-                load_in_4bit=True,
-                **model_kwargs,
-            )
+            if config["useCTransformers"]:
+                model_kwargs = {
+                    "top_p": config["itemGenTopP"],
+                    "temperature": config["itemGenTemperature"],
+                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                }
+                tokenizer = AutoTokenizer.from_pretrained(
+                    config["CTransformersItemGenTokenizer"], **model_kwargs
+                )
+                model = CAutoModel.from_pretrained(
+                    config["itemGenModelName"],
+                    hf=True,
+                    **model_kwargs,
+                )
+            else:
+                model_kwargs = {
+                    "top_p": config["itemGenTopP"],
+                    "temperature": config["itemGenTemperature"],
+                    "device_map": "auto",
+                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                }
+                tokenizer = AutoTokenizer.from_pretrained(
+                    config["itemGenModelName"], **model_kwargs
+                )
+                # TODO:Some modules are dispatched on the CPU or the disk. Make sure you have enough GPU RAM to fit
+                # the quantized model. If you want to dispatch the model on the CPU or the disk while keeping
+                # these modules in 32-bit, you need to set `load_in_8bit_fp32_cpu_offload=True` and pass a custom
+                # `device_map` to `from_pretrained`. Check
+                # https://huggingface.co/docs/transformers/main/en/main_classes/quantization#offload-between-cpu-and-gpu
+                # for more details.
+                model = AutoModelForCausalLM.from_pretrained(
+                    config["itemGenModelName"],
+                    load_in_4bit=True,
+                    **model_kwargs,
+                )
 
             pipeline = hf_pipeline(
                 task="text-generation",
@@ -186,20 +204,34 @@ def RunExperiment(config: dict):
                     anthropic_api_key=ANTHROPIC_KEY,
                 )
             else:
-                model_kwargs = {
-                    "top_p": config["itemEvalTopP"],
-                    "temperature": config["itemEvalTemperature"],
-                    "device_map": "auto",
-                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-                }
-                tokenizer = AutoTokenizer.from_pretrained(
-                    config["itemEvalModelName"], **model_kwargs
-                )
-                model = AutoModelForCausalLM.from_pretrained(
-                    config["itemEvalModelName"],
-                    load_in_4bit=True,
-                    **model_kwargs,
-                )
+                if config["useCTransformers"]:
+                    model_kwargs = {
+                        "top_p": config["itemEvalTopP"],
+                        "temperature": config["itemEvalTemperature"],
+                    }
+                    tokenizer = AutoTokenizer.from_pretrained(
+                        config["CTransformersitemEvalTokenizer"], **model_kwargs
+                    )
+                    model = CAutoModel.from_pretrained(
+                        config["itemEvalModelName"],
+                        hf=True,
+                        **model_kwargs,
+                    )
+                else:
+                    model_kwargs = {
+                        "top_p": config["itemEvalTopP"],
+                        "temperature": config["itemEvalTemperature"],
+                        "device_map": "auto",
+                        # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                    }
+                    tokenizer = AutoTokenizer.from_pretrained(
+                        config["itemEvalModelName"], **model_kwargs
+                    )
+                    model = AutoModelForCausalLM.from_pretrained(
+                        config["itemEvalModelName"],
+                        load_in_4bit=True,
+                        **model_kwargs,
+                    )
 
                 pipeline = hf_pipeline(
                     task="text-generation",
@@ -254,20 +286,34 @@ def RunExperiment(config: dict):
                 anthropic_api_key=ANTHROPIC_KEY,
             )
         else:
-            model_kwargs = {
-                "top_p": config["itemResponseGenTopP"],
-                "temperature": config["itemResponseGenTemperature"],
-                "device_map": "auto",
-                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-            }
-            tokenizer = AutoTokenizer.from_pretrained(
-                config["itemResponseGenModelName"], **model_kwargs
-            )
-            model = AutoModelForCausalLM.from_pretrained(
-                config["itemResponseGenModelName"],
-                load_in_4bit=True,
-                **model_kwargs,
-            )
+            if config["useCTransformers"]:
+                model_kwargs = {
+                    "top_p": config["itemResponseGenTopP"],
+                    "temperature": config["itemResponseGenTemperature"],
+                }
+                tokenizer = AutoTokenizer.from_pretrained(
+                    config["CTransformersItemResponseGenTokenizer"], **model_kwargs
+                )
+                model = CAutoModel.from_pretrained(
+                    config["itemResponseGenModelName"],
+                    hf=True,
+                    **model_kwargs,
+                )
+            else:
+                model_kwargs = {
+                    "top_p": config["itemResponseGenTopP"],
+                    "temperature": config["itemResponseGenTemperature"],
+                    "device_map": "auto",
+                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                }
+                tokenizer = AutoTokenizer.from_pretrained(
+                    config["itemResponseGenModelName"], **model_kwargs
+                )
+                model = AutoModelForCausalLM.from_pretrained(
+                    config["itemResponseGenModelName"],
+                    load_in_4bit=True,
+                    **model_kwargs,
+                )
 
             pipeline = hf_pipeline(
                 task="text-generation",

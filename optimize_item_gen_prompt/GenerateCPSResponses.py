@@ -5,12 +5,6 @@ import re
 import pandas as pd
 from config import config
 
-# HF
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-)
 from transformers import pipeline as hf_pipeline
 from key import OPENAI_KEY
 import time
@@ -22,7 +16,6 @@ from langchain.chat_models import ChatOpenAI
 
 # API key stored in key.py, and should NOT be committed
 from tqdm import tqdm
-from argparse import ArgumentParser
 from Prompts import item_response_gen_prompts
 
 
@@ -279,64 +272,3 @@ def create_scenario_responses(
                 )
 
     ai_responses.to_json(f"{response_file_name}_round_{round}.json", orient="records")
-
-
-# test prompt X number of times, and save in df
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--model_name", type=str)
-    parser.add_argument("--temperature", type=float)
-    parser.add_argument("--top_p", type=float)
-    parser.add_argument("--frequency_penalty", type=float)
-    parser.add_argument("--presence_penalty", type=float)
-    parser.add_argument("--prompt_idx", type=int)
-    parser.add_argument("--max_tokens", type=int)
-    parser.add_argument("--input_file", type=str)
-    parser.add_argument("--demographics_file", type=str, default=None)
-    parser = parser.parse_args()
-    model_name = parser.model_name
-    temperature = parser.temperature
-    max_tokens = parser.max_tokens
-    top_p = parser.top_p
-    frequency_penalty = parser.frequency_penalty
-    presence_penalty = parser.presence_penalty
-
-    if model_name == "gpt-4" or model_name == "gpt-3.5-turbo":
-        model_kwargs = {
-            "top_p": top_p,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
-        }
-        llm = ChatOpenAI(
-            model_name=model_name,
-            openai_api_key=OPENAI_KEY,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            model_kwargs=model_kwargs,
-        )
-    else:
-        model_kwargs = {
-            "top_p": top_p,
-            "temperature": temperature,
-            "device_map": "auto",
-            # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-        }
-        tokenizer = AutoTokenizer.from_pretrained(model_name, **model_kwargs)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name, load_in_8bit=True, **model_kwargs
-        )
-        pipeline = hf_pipeline(
-            task="text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            batch_size=1,
-            max_new_tokens=max_tokens,
-            model_kwargs=model_kwargs,
-        )
-        llm = HuggingFacePipeline(pipeline=pipeline)
-
-    create_scenario_responses(
-        llm,
-        parser.input_file,
-        parser.demographics_file,
-    )
