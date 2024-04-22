@@ -125,6 +125,7 @@ def RunExperiment(config: dict):
                 model = CAutoModel.from_pretrained(
                     config["itemGenModelName"],
                     hf=True,
+                    gpu_layers=config["CTransformersNumGPULayers"],
                     **model_kwargs,
                 )
             else:
@@ -137,15 +138,10 @@ def RunExperiment(config: dict):
                 tokenizer = AutoTokenizer.from_pretrained(
                     config["itemGenModelName"], **model_kwargs
                 )
-                # TODO:Some modules are dispatched on the CPU or the disk. Make sure you have enough GPU RAM to fit
-                # the quantized model. If you want to dispatch the model on the CPU or the disk while keeping
-                # these modules in 32-bit, you need to set `load_in_8bit_fp32_cpu_offload=True` and pass a custom
-                # `device_map` to `from_pretrained`. Check
-                # https://huggingface.co/docs/transformers/main/en/main_classes/quantization#offload-between-cpu-and-gpu
-                # for more details.
                 model = AutoModelForCausalLM.from_pretrained(
                     config["itemGenModelName"],
                     load_in_4bit=True,
+                    max_new_tokens=config["itemGenMaxTokens"],
                     **model_kwargs,
                 )
 
@@ -215,6 +211,8 @@ def RunExperiment(config: dict):
                     model = CAutoModel.from_pretrained(
                         config["itemEvalModelName"],
                         hf=True,
+                        gpu_layers=config["CTransformersNumGPULayers"],
+                        max_new_tokens=config["itemEvalMaxTokens"],
                         **model_kwargs,
                     )
                 else:
@@ -297,6 +295,8 @@ def RunExperiment(config: dict):
                 model = CAutoModel.from_pretrained(
                     config["itemResponseGenModelName"],
                     hf=True,
+                    gpu_layers=config["CTransformersNumGPULayers"],
+                    max_new_tokens=config["itemResponseGenMaxTokens"],
                     **model_kwargs,
                 )
             else:
