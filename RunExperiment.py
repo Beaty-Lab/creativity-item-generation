@@ -19,6 +19,7 @@ import transformers
 import json
 from pathlib import Path
 from os.path import join
+from typing import Tuple
 
 warnings.filterwarnings(
     "ignore"
@@ -52,32 +53,10 @@ from ctransformers import AutoModelForCausalLM as CAutoModel
 from ctransformers import AutoTokenizer as CTokenizer
 
 
-"""
-A function to run an AIG trial. Only LLama and OpenAI models should be used.
-Parameters:
-    num_iter: int, how many iterations of item gen to run
-    useItemEvalModel: bool, whether to use GPT-4 item evaluation
-    itemResponseEvalMetric: str, the metric for item response evaluation
-    numItemsPerList: int, the number of items per wordlist to generate
-"""
-
-
-# TODO The `load_in_4bit` and `load_in_8bit` arguments are deprecated and will be removed in the future versions. Please, pass a `BitsAndBytesConfig` object in `quantization_config` argument instead.
-def RunExperiment(config: dict):
-    np.random.seed(
-        config["random_seed"]
-    )  # sets a randomization seed for reproducibility
-    transformers.set_seed(config["random_seed"])
-    # save the config file
-    config_path = Path(config["itemGenOutputFile"]).parent.absolute()
-    with open(join(config_path, "config.json"), "w+") as cf:
-        json.dump(config, cf)
-
-    with open(config["logFile"], "w+") as log:
-        log.writelines("Starting Trial...\n")
-
+# load all LLMs
+def _init_models(config: dict) -> Tuple:
     try:
-    # load item gen model
+        # load item gen model
         if (
             config["itemGenModelName"] == "gpt-4"
             or config["itemGenModelName"] == "gpt-3.5-turbo"
@@ -330,6 +309,35 @@ def RunExperiment(config: dict):
             log.writelines(str(e) + "\n")
         exit(-1)
 
+    return item_gen_llm, item_eval_llm, item_response_llm
+
+
+"""
+A function to run an AIG trial. Only LLama and OpenAI models should be used.
+Parameters:
+    num_iter: int, how many iterations of item gen to run
+    useItemEvalModel: bool, whether to use GPT-4 item evaluation
+    itemResponseEvalMetric: str, the metric for item response evaluation
+    numItemsPerList: int, the number of items per wordlist to generate
+"""
+
+
+# TODO The `load_in_4bit` and `load_in_8bit` arguments are deprecated and will be removed in the future versions. Please, pass a `BitsAndBytesConfig` object in `quantization_config` argument instead.
+def RunExperiment(config: dict):
+    np.random.seed(
+        config["random_seed"]
+    )  # sets a randomization seed for reproducibility
+    transformers.set_seed(config["random_seed"])
+    # save the config file
+    config_path = Path(config["itemGenOutputFile"]).parent.absolute()
+    with open(join(config_path, "config.json"), "w+") as cf:
+        json.dump(config, cf)
+
+    with open(config["logFile"], "w+") as log:
+        log.writelines("Starting Trial...\n")
+
+    item_gen_llm, item_eval_llm, item_response_llm = _init_models(config)
+
     for i in range(config["numIter"]):
         with open(config["logFile"], "a") as log:
             print(f"Starting iteration {i} of experiment")
@@ -408,7 +416,7 @@ def RunExperiment(config: dict):
         )
 
         # evaluate item responses
-        if config["useItemResponseEvalModel"]:
+        if config["useItemResponseEvalModel"]:  # TODO: why is this an arg?
             RLPS_RoBERTa.predict_with_model(
                 config["itemResponseOriginalityModelDir"],
                 config["itemResponseGenOutputFile"],
