@@ -1,8 +1,9 @@
 # prompts for item generation and evaluation are kept separate from other scripts.
 # New prompts can be added to the appropriate list, and used by passing the index to the prompt in config.py
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from typing import Tuple, List
 
-import config
+from config import config
 
 
 # Store any prompts not used in main item gen loop here
@@ -51,7 +52,7 @@ class _HelperPrompts:
 
 
 class _CPSPromptTemplate:
-    CPS_item_eval_prompts = [  # 1
+    item_eval_prompts = [  # 1
         [
             SystemMessage(
                 content="""You are a scientist designing an experiment testing for problem solving ability.  Participants will be given scenarios which they must come up with possible solutions for, and it is crucial that these scenarios obey the criteria set out by the study design.
@@ -182,7 +183,7 @@ Controversial
             ),
         ]
     ]
-    CPS_item_response_gen_prompts = [
+    item_response_gen_prompts = [
         [  # baseline
             (
                 "system",
@@ -229,7 +230,7 @@ Controversial
             ),
         ],
     ]
-    CPS_item_gen_prompts = [
+    item_gen_prompts = [
         [
             ("system", "You are a scenario writer."),
             (
@@ -475,9 +476,9 @@ Controversial
 
 
 class _ConsequencesPromptTemplate:  # TODO: add prompts
-    consequences_item_eval_prompts = []
+    item_eval_prompts = []
 
-    consequences_item_response_gen_prompts = [
+    item_response_gen_prompts = [
         (
             "system",
             "You are a participant in an experiment. You will be presented with a hypothetical scenario, and must think of as many consequences as possible if the scenario were to become true. Be creative in your responses. Provide your responses as a numbered list. Respond in no more than 7-8 words per consequence.",
@@ -492,7 +493,7 @@ class _ConsequencesPromptTemplate:  # TODO: add prompts
         ),
     ]
 
-    consequences_item_gen_prompts = [
+    item_gen_prompts = [
         [  # 0, few-shot
             (
                 "system",
@@ -530,15 +531,28 @@ class _ConsequencesPromptTemplate:  # TODO: add prompts
     ]
 
 
+# TODO: add your prompt class here
+# prompt_class_mapping = {
+#     "CPS": _CPSPromptTemplate,
+#     "Consequences": _ConsequencesPromptTemplate,
+# }
+
+# def SelectPrompts(prompt_key) -> Tuple[List]:
+#     cls = prompt_class_mapping[prompt_key]
+#     item_gen_prompts = cls.item_gen_prompts
+#     item_eval_prompts = cls.item_eval_prompts
+#     item_response_gen_prompts = cls.item_response_gen_prompts
+#     return item_gen_prompts, item_eval_prompts, item_response_gen_prompts
+
+
 # select prompt template set based on config
 # keep the template strings private to the modeule, have the correct prompt always be imported here
 if config["task"] == "CPS":
-    item_gen_prompts = _CPSPromptTemplate.CPS_item_gen_prompts
-    item_response_gen_prompts = _CPSPromptTemplate.CPS_item_gen_prompts
-    item_eval_prompts = _CPSPromptTemplate.CPS_item_eval_prompts
+    item_gen_prompts = _CPSPromptTemplate.item_gen_prompts
+    item_response_gen_prompts = _CPSPromptTemplate.item_response_gen_prompts
+    item_eval_prompts = _CPSPromptTemplate.item_eval_prompts
+    wordlist_gen_prompts = _HelperPrompts.wordlist_gen_prompts
 elif config["task"] == "consequences":
-    item_gen_prompts = _ConsequencesPromptTemplate.consequences_item_gen_prompts
-    item_response_gen_prompts = (
-        _ConsequencesPromptTemplate.consequences_item_response_gen_prompts
-    )
-    item_eval_prompts = _ConsequencesPromptTemplate.consequences_item_eval_prompts
+    item_gen_prompts = _ConsequencesPromptTemplate.item_gen_prompts
+    item_response_gen_prompts = _ConsequencesPromptTemplate.item_response_gen_prompts
+    item_eval_prompts = _ConsequencesPromptTemplate.item_eval_prompts

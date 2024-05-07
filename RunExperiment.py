@@ -27,8 +27,10 @@ warnings.filterwarnings(
 
 import ItemGeneration, ItemEvaluation
 from SelectItemGenShots import SelectItemGenShots
+# from ETL import UploadtoDB
 
-from optimize_item_gen_prompt import GenerateCPSResponses, RLPS_RoBERTa
+from optimize_item_gen_prompt import GenerateCPSResponses 
+# RLPS_RoBERTa
 from config import config
 from key import OPENAI_KEY, GEMINI_KEY, ANTHROPIC_KEY
 
@@ -49,9 +51,13 @@ from transformers import (
 )
 from transformers import pipeline as hf_pipeline
 
-from ctransformers import AutoModelForCausalLM as CAutoModel
-from ctransformers import AutoTokenizer as CTokenizer
+from Task import CPS, Consequences
 
+# c-based transformers can be difficult to install correctly
+# no point importing them if they won't be used
+if config["useCTransformers"]:
+    from ctransformers import AutoModelForCausalLM as CAutoModel
+    from ctransformers import AutoTokenizer as CTokenizer
 
 # load all LLMs
 def _init_models(config: dict) -> Tuple:
@@ -120,7 +126,7 @@ def _init_models(config: dict) -> Tuple:
                 model = AutoModelForCausalLM.from_pretrained(
                     config["itemGenModelName"],
                     load_in_4bit=True,
-                    max_new_tokens=config["itemGenMaxTokens"],
+                    # max_new_tokens=config["itemGenMaxTokens"],
                     **model_kwargs,
                 )
 
@@ -225,7 +231,8 @@ def _init_models(config: dict) -> Tuple:
                 print(e)
                 log.writelines(str(e) + "\n")
             exit(-1)
-
+    else:
+        item_eval_llm = None
     try:
         if config["itemGenModelName"] == config["itemResponseGenModelName"]:
             item_response_llm = item_gen_llm
@@ -308,9 +315,17 @@ def _init_models(config: dict) -> Tuple:
             print(e)
             log.writelines(str(e) + "\n")
         exit(-1)
-
+    
     return item_gen_llm, item_eval_llm, item_response_llm
 
+
+# TODO: add your task to the init function
+def _init_task(config: dict):
+    if config["task"] == "CPS":
+        task = CPS()
+    elif config["task"] == "consequences":
+        task = Consequences()
+    return task
 
 """
 A function to run an AIG trial. Only LLama and OpenAI models should be used.
@@ -337,6 +352,8 @@ def RunExperiment(config: dict):
         log.writelines("Starting Trial...\n")
 
     item_gen_llm, item_eval_llm, item_response_llm = _init_models(config)
+
+    task = _init_task(config)
 
     for i in range(config["numIter"]):
         with open(config["logFile"], "a") as log:
@@ -417,25 +434,7 @@ def RunExperiment(config: dict):
 
         # evaluate item responses
         if config["useItemResponseEvalModel"]:  # TODO: why is this an arg?
-            RLPS_RoBERTa.predict_with_model(
-                config["itemResponseOriginalityModelDir"],
-                config["itemResponseGenOutputFile"],
-                "originality",
-                config[
-                    "itemResponseGenOutputFile"
-                ],  # we need to chop off most columns from the first instance, so send another copy to save to
-                i,  # round
-            )
-            RLPS_RoBERTa.predict_with_model(
-                config["itemResponseQualityModelDir"],
-                config["itemResponseGenOutputFile"],
-                "quality",
-                config[
-                    "itemResponseGenOutputFile"
-                ],  # we need to chop off most columns from the first instance, so send another copy to save to
-                i,  # round
-            )
-
+            task.RunScorers(i)
             item_shots = SelectItemGenShots(
                 config["itemResponseGenOutputFile"],
                 config["shotSelectionMetric"],
@@ -446,6 +445,7 @@ def RunExperiment(config: dict):
                 config["random_seed"],
                 config["shotSelectionAlgorithm"],
             )
+    # TODO: add DB support for writing items, checking for similarity within database
 
 
 RunExperiment(config)
