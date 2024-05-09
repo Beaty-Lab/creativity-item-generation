@@ -45,6 +45,10 @@ class CPS(AbstractTask):
 
 
 class Consequences(AbstractTask):
+    oscai_scorer = imp.load_source(
+        "oscai_scoring",
+        "/home/aml7990/Code/creativity-item-generation/scorers/oscai_scoring.py",
+    )
     def __init__(self) -> None:
         super().__init__()
         self.task_id = "consequences"
@@ -52,4 +56,7 @@ class Consequences(AbstractTask):
     # run scoring for the task
     # to ensure correct behavior, round must always be passed
     def RunScorers(self, i: int) -> None:
-        pass
+        self.oscai_scorer.predict_with_model(
+            config["itemResponseGenOutputFile"],
+            i,  # round
+        )
