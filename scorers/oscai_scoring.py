@@ -1,7 +1,9 @@
 import requests
 import pandas as pd
 
-from oscai_key import oscai_key
+# from oscai_key import oscai_key
+# TODO: DELETE!
+oscai_key = "ocs-V0hmFRFqmFP52rdMg_SGn43k0NhHcTa158bm9FjNZTM"
 
 headers = {
     'accept': 'application/json',

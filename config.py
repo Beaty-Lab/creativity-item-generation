@@ -1,11 +1,10 @@
 config = {
-    "random_seed": 999,
-    "numIter": 5,
-    "itemGenModelName": "claude-3",
-    "useItemEvalModel": False,
-    "useItemResponseEvalModel": True,
-    "itemEvalModelName": "claude-3",
-    "itemResponseGenModelName": "meta-llama/Llama-2-7b-chat-hf",
+    # must be one of CPS or consequences
+    "task": "CPS",
+    
+    # numeric params
+    "random_seed": 666,
+    "numIter": 1,
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
     "itemResponseGenFrequencyPenalty": 0.0,
@@ -24,20 +23,47 @@ config = {
     "itemGenMaxTokens": 768,
     "itemEvalMaxTokens": 2048,
     "itemResponseGenMaxTokens": 350,
-    "wordlistFile": "./creativity-item-generation/outputs/creative_wordlist_5_words.tsv",
-    "demographicsFile": "./creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
-    "itemGenOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/items.json",
-    "itemEvalOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/items.json",
-    "itemResponseGenOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/item_responses",
     "numItemsPerList": 3,
     "numItemGenerationAttempts": 3,
-    "itemResponseOriginalityModelDir": "./creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
-    "itemResponseQualityModelDir": "./creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
+    "itemGenNumShots": 0,
+    "numResponsesPerItem": 1,
+
+    # shot selection params
+    "EmbeddingModel": "all-MiniLM-L6-v2",
+
+    # non-numeric params
     "shotSelectionMetric": "originality",
-    "itemGenNumShots": 4,
     "shotSelectionSort": "max",
     "shotSelectionAggregate": "mean",
     "shotSelectionAlgorithm": "constraint satisfaction",
-    "logFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/log.txt",
-    "numResponsesPerItem": 20,
+
+    # scoring models dirs (ignored for consequences which uses OCS)
+    "itemResponseOriginalityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
+    "itemResponseQualityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
+
+    # model dirs and flags
+    "itemGenModelName": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "itemEvalModelName": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "itemResponseGenModelName": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "useItemEvalModel": False,
+
+    # dataset dirs
+    "wordlistFile": "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_tiny.tsv",
+    "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
+
+    # output dirs
+    "itemGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/consequences_test/items.json",
+    "itemEvalOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/consequences_test/items.json",
+    "itemResponseGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/consequences_test/item_responses",
+    "logFile": "/home/aml7990/Code/creativity-item-generation/outputs/consequences_test/log.txt",
+
+    # CTransformers
+    "useCTransformers": False,
+    "CTransformersNumGPULayers": 50,
+    "CTransformersItemGenTokenizer": "meta-llama/Llama-2-7b-chat-hf",
+    "CTransformersItemEvalTokenizer": "meta-llama/Llama-2-7b-chat-hf",
+    "CTransformersItemResponseGenTokenizer": "meta-llama/Llama-2-7b-chat-hf",
+
+    # prompt config file
+    "promptConfig": "/home/aml7990/Code/creativity-item-generation/prompts/CPS_prompts.py"
 }

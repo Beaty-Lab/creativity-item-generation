@@ -51,7 +51,8 @@ from transformers import (
 )
 from transformers import pipeline as hf_pipeline
 
-from Task import CPS, Consequences
+from Task import init_task
+from Prompts import load_prompts
 
 # c-based transformers can be difficult to install correctly
 # no point importing them if they won't be used
@@ -320,12 +321,8 @@ def _init_models(config: dict) -> Tuple:
 
 
 # TODO: add your task to the init function
-def _init_task(config: dict):
-    if config["task"] == "CPS":
-        task = CPS()
-    elif config["task"] == "consequences":
-        task = Consequences()
-    return task
+# TODO: this can be moved to Task.py and just pass
+
 
 """
 A function to run an AIG trial. Only LLama and OpenAI models should be used.
@@ -353,7 +350,11 @@ def RunExperiment(config: dict):
 
     item_gen_llm, item_eval_llm, item_response_llm = _init_models(config)
 
-    task = _init_task(config)
+    # TODO: generalize wordlist creation
+    item_gen_prompt, item_eval_prompt, item_response_gen_prompt, worlist_gen_prompt = load_prompts()
+    # TODO: the above is just prompt templates
+    # the task needs to create the final prompt
+    task = init_task(config)
 
     for i in range(config["numIter"]):
         with open(config["logFile"], "a") as log:
@@ -364,7 +365,7 @@ def RunExperiment(config: dict):
 
         if i == 0:
             ItemGeneration.create_scenarios(
-                config["itemGenPromptIdx"],
+                item_gen_prompt,
                 config["itemGenModelName"],
                 item_gen_llm,
                 i,  # round
@@ -377,10 +378,11 @@ def RunExperiment(config: dict):
                 config["numItemGenerationAttempts"],
                 input_file=None,
                 wordlist_file=config["wordlistFile"],
+                task_parser=task
             )
         elif i >= 1:
             ItemGeneration.create_scenarios(
-                config["itemGenPromptIdx"],
+                item_gen_prompt,
                 config["itemGenModelName"],
                 item_gen_llm,
                 i,  # round
@@ -396,11 +398,12 @@ def RunExperiment(config: dict):
                 ],  # TODO: make sure the output file is consistent from the item evaluator, etc
                 wordlist_file=config["wordlistFile"],
                 item_shots=item_shots,  # The k shots to give to the prompt
+                task_parser=task
             )
         # evaluate items
         if config["useItemEvalModel"]:
             ItemEvaluation.evaluate_scenarios(
-                config["itemEvalPromptIdx"],
+                item_eval_prompt,
                 config["itemEvalOutputFile"],
                 config["itemEvalModelName"],
                 item_eval_llm,
@@ -422,6 +425,7 @@ def RunExperiment(config: dict):
 
         # TODO: whether or not item eval was used should be check to make sure the correct file is updated.
         GenerateCPSResponses.create_scenario_responses(
+            item_response_gen_prompt,
             item_response_llm,
             i,  # round
             config["itemGenOutputFile"],
@@ -430,21 +434,21 @@ def RunExperiment(config: dict):
             config["itemResponseGenModelName"],
             config["numResponsesPerItem"],
             config["itemResponseGenPromptIdx"],
+            task_parser=task,
         )
 
         # evaluate item responses
-        if config["useItemResponseEvalModel"]:  # TODO: why is this an arg?
-            task.RunScorers(i)
-            item_shots = SelectItemGenShots(
-                config["itemResponseGenOutputFile"],
-                config["shotSelectionMetric"],
-                config["itemGenNumShots"],
-                i,
-                config["shotSelectionSort"],
-                config["shotSelectionAggregate"],
-                config["random_seed"],
-                config["shotSelectionAlgorithm"],
-            )
+        task.RunScorers(i)
+        item_shots = SelectItemGenShots(
+            config["itemResponseGenOutputFile"],
+            config["shotSelectionMetric"],
+            config["itemGenNumShots"],
+            i,
+            config["shotSelectionSort"],
+            config["shotSelectionAggregate"],
+            config["random_seed"],
+            config["shotSelectionAlgorithm"],
+        )
     # TODO: add DB support for writing items, checking for similarity within database
 
 
