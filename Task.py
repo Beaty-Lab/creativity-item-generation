@@ -333,18 +333,34 @@ class Consequences(AbstractTask):
     class CreativityScenarioResponseParser(BaseOutputParser):
         @staticmethod
         def parse(text: str) -> str:
-            # TODO: implement
-            pass
+            try:
+                text = text.split("Consequences:")[1]
+                text = text.strip("\n").strip(" ")
+            except Exception:
+                # OpenAIs models with yield an AIMessage object
+                text = text.content.split("Consequences:")[1]
+                text = text.strip("\n").strip(" ")
+            # Remove intervening newlines
+            text = re.sub("\n", "", text)
+            text = re.sub("\t", "", text)
+
+            return text
 
     class CreativityScenarioItemParser(BaseOutputParser):
         @staticmethod
         def parse(text: str) -> str:
             # TODO: implement
-            pass
+            text = text.split("Scenario:")[1]
+
+            # Remove intervening newlines
+            text = re.sub("\n", "", text)
+            text = re.sub("\t", "", text)
+            text = text.strip("\n").strip(" ")
+
+            return text # OK
 
     @staticmethod
     def RunItemGeneration(
-        word_list,
         prompt: List[Tuple[str]],
         llm,
         previous_llm_output=None,
@@ -353,8 +369,101 @@ class Consequences(AbstractTask):
         numAttempts: int = 1,
         task: str = None,
     ):
-        # TODO: implement
-        pass
+        # item generation
+        parser = Consequences.CreativityScenarioItemParser()
+        retry_parser = RetryOutputParser.from_llm(
+            parser=parser, llm=llm, max_retries=numAttempts
+        )
+         # when true, will use AI feedback to improve the model outputs
+        if previous_llm_output is not None:
+            prompt_formatted = ChatPromptTemplate.from_messages(
+                prompt,
+            )
+            human_query = prompt_formatted.messages[1].prompt.template
+            prompt_formatted.messages.pop()
+
+            # I think put them as one message where the human lists some example items
+            # TODO: make sure the items are properly formatted
+            item_shots = _convert_to_message(
+                (
+                    "human",  # TODO: refactor: add prompt template to prompts.py
+                    "\nHere are some more examples of high quality scenarios from other authors. Use these scenarios as guidance, but avoid drawing from them too heavily when developing your own:\n"
+                    + "\n###\n".join(item_shots)
+                    + f"""###
+
+                        Scenario:""",
+                )
+            )
+            prompt_formatted.messages.insert(1, item_shots)
+
+            # add AI feedback, if it exists
+            if ratings_from_file is not None:
+                # add previous output to the prompt
+                prompt_formatted.messages.insert(
+                    2, _convert_to_message(("ai", "{ai_output}"))
+                )
+                # add the LLM evaluation to the prompt
+                prompt_formatted.messages.insert(
+                    3,
+                    _convert_to_message(
+                        (
+                            "human",
+                            """
+                        Here is some feedback for your scenario:
+                        {ai_feedback}
+
+                        Please revise your scenario, and try improve your score in each category. Remember, maximizing the scores doesn't mean your scenario is better. Also, please don't make all your edits at the end of the scenario, spread them throughout.
+                        
+                        ###
+                        
+                        """
+                            + human_query,
+                        )
+                    ),
+                )
+            completion_chain = (
+                prompt_formatted | llm | StrOutputParser()
+            )  # StrOutputParser grabs the content field from chat models
+            validation_chain = RunnableParallel(
+                completion=completion_chain, prompt_value=prompt_formatted
+            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+
+            if ratings_from_file is not None:
+                final_prompt = prompt_formatted.format(
+                    **{
+                        "ai_output": previous_llm_output,
+                        "ai_feedback": ratings_from_file,
+                    }
+                )
+                result = validation_chain.invoke(
+                    {
+                        "ai_output": previous_llm_output,
+                        "ai_feedback": ratings_from_file,
+                    }
+                )
+                print(result)
+            else:
+                result = validation_chain.invoke()
+                print(result)
+
+            return result, final_prompt
+        else:
+            prompt_formatted = ChatPromptTemplate.from_messages(
+                prompt,
+            )
+
+            # StrOutputParser grabs the content field from chat models
+            completion_chain = prompt_formatted | llm | StrOutputParser()
+
+            # We try to regenerate a few times if the LLM fails validation
+            # Should we be unable to fix the scenario, we return "None", these get dropped later
+            validation_chain = RunnableParallel(
+                completion=completion_chain, prompt_value=prompt_formatted
+            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+
+            final_prompt = prompt_formatted.format()
+            result = validation_chain.invoke({})
+            return result, final_prompt
 
     @staticmethod
     def RunItemResponseGeneration(

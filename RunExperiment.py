@@ -381,11 +381,12 @@ def RunExperiment(config: dict):
                 task_parser=task
             )
         elif i >= 1:
-            ItemGeneration.create_scenarios(
+            if not config["useItemScoring"]:
+                ItemGeneration.create_scenarios(
                 item_gen_prompt,
                 config["itemGenModelName"],
                 item_gen_llm,
-                i,  # round
+                0,  # round
                 config["itemGenMaxTokens"],
                 config["itemGenPresencePenalty"],
                 config["itemGenFrequencyPenalty"],
@@ -400,6 +401,26 @@ def RunExperiment(config: dict):
                 item_shots=item_shots,  # The k shots to give to the prompt
                 task_parser=task
             )
+            else:
+                ItemGeneration.create_scenarios(
+                    item_gen_prompt,
+                    config["itemGenModelName"],
+                    item_gen_llm,
+                    i,  # round
+                    config["itemGenMaxTokens"],
+                    config["itemGenPresencePenalty"],
+                    config["itemGenFrequencyPenalty"],
+                    config["itemGenTemperature"],
+                    config["itemGenTopP"],
+                    config["itemGenOutputFile"],
+                    config["numItemGenerationAttempts"],
+                    input_file=config[
+                        "itemGenOutputFile"
+                    ],  # TODO: make sure the output file is consistent from the item evaluator, etc
+                    wordlist_file=config["wordlistFile"],
+                    item_shots=item_shots,  # The k shots to give to the prompt
+                    task_parser=task
+                )
         # evaluate items
         if config["useItemEvalModel"]:
             ItemEvaluation.evaluate_scenarios(
@@ -424,31 +445,46 @@ def RunExperiment(config: dict):
         # generate item responses
 
         # TODO: whether or not item eval was used should be check to make sure the correct file is updated.
-        GenerateCPSResponses.create_scenario_responses(
-            item_response_gen_prompt,
-            item_response_llm,
-            i,  # round
-            config["itemGenOutputFile"],
-            config["demographicsFile"],
-            config["itemResponseGenOutputFile"],
-            config["itemResponseGenModelName"],
-            config["numResponsesPerItem"],
-            config["itemResponseGenPromptIdx"],
-            task_parser=task,
-        )
+        if not config["useItemScoring"]:
+            GenerateCPSResponses.create_scenario_responses(
+                item_response_gen_prompt,
+                item_response_llm,
+                0,  # round
+                config["itemGenOutputFile"],
+                config["demographicsFile"],
+                config["itemResponseGenOutputFile"],
+                config["itemResponseGenModelName"],
+                config["numResponsesPerItem"],
+                config["itemResponseGenPromptIdx"],
+                task_parser=task,
+            )
+        else:
+            GenerateCPSResponses.create_scenario_responses(
+                item_response_gen_prompt,
+                item_response_llm,
+                i,  # round
+                config["itemGenOutputFile"],
+                config["demographicsFile"],
+                config["itemResponseGenOutputFile"],
+                config["itemResponseGenModelName"],
+                config["numResponsesPerItem"],
+                config["itemResponseGenPromptIdx"],
+                task_parser=task,
+            )
 
         # evaluate item responses
-        task.RunScorers(i)
-        item_shots = SelectItemGenShots(
-            config["itemResponseGenOutputFile"],
-            config["shotSelectionMetric"],
-            config["itemGenNumShots"],
-            i,
-            config["shotSelectionSort"],
-            config["shotSelectionAggregate"],
-            config["random_seed"],
-            config["shotSelectionAlgorithm"],
-        )
+        if config["useItemScoring"]:
+            task.RunScorers(i)
+            item_shots = SelectItemGenShots(
+                config["itemResponseGenOutputFile"],
+                config["shotSelectionMetric"],
+                config["itemGenNumShots"],
+                i,
+                config["shotSelectionSort"],
+                config["shotSelectionAggregate"],
+                config["random_seed"],
+                config["shotSelectionAlgorithm"],
+            )
     # TODO: add DB support for writing items, checking for similarity within database
 
 

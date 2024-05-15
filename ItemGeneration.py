@@ -214,7 +214,7 @@ def create_scenarios(
                         "item_gen_presence_penalty": presence_penalty,
                         "item_gen_frequency_penalty": frequency_penalty,
                         "item_gen_temperature": temperature,
-                        "item_type": row["item_type"],
+                        "item_type": task_parser.task_id,
                         "item_gen_top_p": top_p,
                         "word_list": row["word_list"],
                     },
@@ -251,5 +251,70 @@ def create_scenarios(
             # have a set of constriants for the initial generation
             # in this case, the same prompt is just repeated x times to build the item pool
             # we must also drop duplicate items, we don't have the wordlist to ground this.
+            generated_items = pd.DataFrame()
+            for index in tqdm(range(config["NumSeedItems"])):
+                result = "None"  # keep on generating items until the model passes all quality control checks
+                if (
+                    model_name == "gpt-4"
+                    or model_name == "gpt-3.5-turbo"
+                    or model_name == "google"
+                    or model_name == "claude-3"
+                ):
+                    time.sleep(5)
+                # generation may fail due to google API filters
+                try:
+                    result, prompt = task_parser.RunItemGeneration(
+                        item_gen_prompt,
+                        llm,
+                        numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
+                    )
+                    print(result)
+                except Exception as e:
+                    with open(config["logFile"], "a") as log:
+                        print(e)
+                        log.writelines(str(e) + "\n")
+                    result = np.nan
+                    prompt = np.nan
+                    continue
+
+                new_scenario = pd.DataFrame(
+                    {
+                        f"creative_scenario_round_{round}": result,
+                        f"prompt_round_{round}": prompt,
+                        "item_gen_model_name": model_name,
+                        "item_gen_max_tokens": max_tokens,
+                        "item_gen_presence_penalty": presence_penalty,
+                        "item_gen_frequency_penalty": frequency_penalty,
+                        "item_gen_temperature": temperature,
+                        "item_type": task_parser.task_id,
+                        "item_gen_top_p": top_p,
+                    },
+                    index=[0],
+                )
+                generated_items = pd.concat((generated_items, new_scenario))
+
+            with open(config["logFile"], "a") as log:
+                print(f"Item gen finished, total items {len(generated_items)}")
+                log.writelines(
+                    f"Item gen finished, total items {len(generated_items)}\n"
+                )
+            # drop rows that failed quality control metrics
+            generated_items.reset_index(drop=True, inplace=True)
+            generated_items = generated_items[
+                generated_items[f"creative_scenario_round_{round}"] != "None"
+            ]
+            generated_items = generated_items[
+                generated_items[f"creative_scenario_round_{round}"] != ""
+            ]
+            generated_items = generated_items[
+                generated_items[f"creative_scenario_round_{round}"] != None
+            ]
+            generated_items.dropna(
+                subset=f"creative_scenario_round_{round}", inplace=True
+            )
+            generated_items.to_json(
+                itemGenOutputFile,
+                orient="records",
+            )
     else:
         print("Unsupported combination of arguments!")
