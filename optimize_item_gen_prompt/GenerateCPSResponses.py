@@ -60,7 +60,23 @@ def create_scenario_responses(
                 # especially for gemini models, the prompt may be blocked due to the safety filters
                 # in those cases, skip and move on
                 try:
-                    if prompt_idx == 1:  # demographics (biased)
+                    if prompt_idx == 0:
+                        result = task_parser.RunItemResponseGeneration(
+                            row[f"creative_scenario_round_{round}"],
+                            item_response_gen_prompt,
+                            prompt_idx,  # prompt_idx
+                            llm,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                    elif prompt_idx == 1:  # demographics (biased)
                         result = task_parser.RunItemResponseGeneration(
                             row[f"creative_scenario_round_{round}"],
                             item_response_gen_prompt,
@@ -116,7 +132,23 @@ def create_scenario_responses(
                     continue
 
             if demographics_file is not None:
-                if prompt_idx == 1:
+                if prompt_idx == 0:
+                    ai_responses = pd.concat(
+                        [
+                            ai_responses,
+                            pd.DataFrame(
+                                {
+                                    f"creative_scenario_round_{round}": row[
+                                        f"creative_scenario_round_{round}"
+                                    ],
+                                    f"creative_response_round_{round}": result,
+                                },
+                                index=[0],
+                            ),
+                        ],
+                        ignore_index=True,
+                    )
+                elif prompt_idx == 1:
                     ai_responses = pd.concat(
                         [
                             ai_responses,

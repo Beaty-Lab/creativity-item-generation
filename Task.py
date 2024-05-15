@@ -5,6 +5,7 @@
     1. A prompt template for each component of the pipeline.
     2. A series of methods for scoring the responses that can be passed to the constraint optimizer.
 """
+
 from langchain.prompts.chat import _convert_to_message
 from langchain.schema import BaseOutputParser, StrOutputParser, OutputParserException
 from langchain_core.runnables import RunnableLambda, RunnableParallel
@@ -18,6 +19,8 @@ from config import config
 import imp
 import re
 import pandas as pd
+from readability import Readability
+from nltk import word_tokenize
 
 
 class AbstractTask(ABC):
@@ -28,6 +31,7 @@ class AbstractTask(ABC):
 
     class CreativeResponseItemParser(BaseOutputParser):
         pass
+
     @abstractmethod
     def RunScorers(self) -> List:
         pass
@@ -41,19 +45,17 @@ class AbstractTask(ABC):
         pass
 
 
-
 class CPS(AbstractTask):
-    from readability import Readability
-    from nltk import word_tokenize
     # add custom modules under the class def
     roberta_scorer = imp.load_source(
         "RLPS_RoBERTa",
         "/home/aml7990/Code/creativity-item-generation/scorers/RLPS_RoBERTa.py",
     )
+
     def __init__(self) -> None:
         super().__init__()
         self.task_id = "CPS"
-    
+
     # item generation requires there be a word_list column from which the list can be extracted
     def prep_wordlist(self, wordlist_file: str, round: int) -> pd.DataFrame:
         wordlists = pd.read_csv(wordlist_file, sep="\t", index_col=0)
@@ -61,71 +63,75 @@ class CPS(AbstractTask):
         wordlists[f"creative_scenario_round_{round}"] = ""
         wordlists[f"prompt_round_{round}"] = ""
         return wordlists
-    
+
     class CreativityScenarioResponseParser(BaseOutputParser):
-    # TODO: for the next round of items after feedback, get rid of everything generated before and after the start of the original item
+        # TODO: for the next round of items after feedback, get rid of everything generated before and after the start of the original item
         @staticmethod
         def parse(text: str) -> str:
             try:
+                text = text.split("Solution:")[1]
                 text = text.strip("\n").strip(" ")
             except Exception:
                 # OpenAIs models with yield an AIMessage object
-                text = text.content.strip("\n").strip(" ")
+                text = text.content.split("Solution:")[1]
+                text = text.strip("\n").strip(" ")
             # Remove intervening newlines
             text = re.sub("\n", "", text)
             text = re.sub("\t", "", text)
 
             return text
-    
+
     class CreativityScenarioItemParser(BaseOutputParser):
         # TODO: is it possible for the user to specify some of the output formatitng, like the forbidden strings?
         # Add this to config file
         # TODO: can we pass the parsing exception into the retry parser, add it to the retry prompt?
         @staticmethod
         def parse(text: str) -> str:
+            # get rid of the instructions
+            text = text.split("Scenario:")[1]
+            print(text)
+            forbidden_strings = [
+                "On the one hand",
+                "On the other hand",
+                "dilemma",
+                "must navigate",
+                "must decide",
+                "has to decide",
+                "is torn between",
+            ]
 
-            # forbidden_strings = [ 
-            #     "On the one hand",
-            #     "On the other hand",
-            #     "dilemma",
-            #     "must navigate",
-            #     "must decide",
-            #     "has to decide",
-            #     "is torn between",
-            # ]
+            # Remove intervening newlines
+            text = re.sub("\n", "", text)
+            text = re.sub("\t", "", text)
 
-            # # Remove intervening newlines
-            # text = re.sub("\n", "", text)
-            # text = re.sub("\t", "", text)
+            if text is None:
+                print("Empty string generated.")
+                raise OutputParserException("Empty string generated.")
 
-            # if text is None:
-            #     print("Empty string generated.")
-            #     raise OutputParserException("Empty string generated.")
+            # remove all text after stop sequence
+            if "I am finished with this scenario." not in text:
+                print("Termination string not found.")
+                raise OutputParserException("Termination string not found.")
+            else:
+                head, sep, tail = text.partition("I am finished with this scenario.")
+                text = head
 
-            # # remove all text after stop sequence
-            # if "I am finished with this scenario." not in text:
-            #     print("Termination string not found.")
-            #     raise OutputParserException("Termination string not found.")
-            # else:
-            #     head, sep, tail = text.partition("I am finished with this scenario.")
-            #     text = head
+            # remove phrases indicating LLM is "spelling out" solution
+            for f in forbidden_strings:
+                if f in text:
+                    print("Scenario contains forbidden string.")
+                    raise OutputParserException("Scenario contains forbidden string.")
 
-            # # remove phrases indicating LLM is "spelling out" solution
-            # for f in forbidden_strings:
-            #     if f in text:
-            #         print("Scenario contains forbidden string.")
-            #         raise OutputParserException("Scenario contains forbidden string.")
+            readability = Readability(text)
+            if len(word_tokenize(text)) < 140:  # drop scenarios that are too short
+                print("Scenario too short.")
+                raise OutputParserException("Scenario too short.")
 
-            # readability = Readability(text)
-            # if len(word_tokenize(text)) < 140:  # drop scenarios that are too short
-            #     print("Scenario too short.")
-            #     raise OutputParserException("Scenario too short.")
-
-            # elif (
-            #     readability.flesch().score < 45
-            # ):  # based on some initial feedback on the results
-            #     print("Scenario too difficult to read.")
-            #     raise OutputParserException("Scenario too difficult to read.")
+            elif (
+                readability.flesch().score < 45
+            ):  # based on some initial feedback on the results
+                print("Scenario too difficult to read.")
+                raise OutputParserException("Scenario too difficult to read.")
 
             text = text.strip("\n").strip(" ")
 
@@ -140,7 +146,7 @@ class CPS(AbstractTask):
         ratings_from_file=None,
         item_shots: list = None,
         numAttempts: int = 1,
-        task: str = None
+        task: str = None,
     ):
         # item generation
         parser = CPS.CreativityScenarioItemParser()
@@ -159,7 +165,7 @@ class CPS(AbstractTask):
             # TODO: make sure the items are properly formatted
             item_shots = _convert_to_message(
                 (
-                    "human", # TODO: refactor: add prompt template to prompts.py
+                    "human",  # TODO: refactor: add prompt template to prompts.py
                     "\nHere are some more examples of high quality scenarios from other authors. Use these scenarios as guidance, but avoid drawing from them too heavily when developing your own:\n"
                     + "\n###\n".join(item_shots)
                     + f"""\n###\nWord list:
@@ -175,7 +181,9 @@ class CPS(AbstractTask):
             # add AI feedback, if it exists
             if ratings_from_file is not None:
                 # add previous output to the prompt
-                prompt_formatted.messages.insert(2, _convert_to_message(("ai", "{ai_output}")))
+                prompt_formatted.messages.insert(
+                    2, _convert_to_message(("ai", "{ai_output}"))
+                )
                 # add the LLM evaluation to the prompt
                 prompt_formatted.messages.insert(
                     3,
@@ -266,9 +274,7 @@ class CPS(AbstractTask):
         Field: str = None,
         Psychometric: str = None,
     ):
-        prompt_formatted = ChatPromptTemplate.from_messages(
-            prompt
-        )
+        prompt_formatted = ChatPromptTemplate.from_messages(prompt)
 
         chain = prompt_formatted | llm
         if prompt_idx == 0:
@@ -303,14 +309,14 @@ class CPS(AbstractTask):
     # to ensure correct behavior, round must always be passed
     def RunScorers(self, i: int) -> None:
         self.roberta_scorer.predict_with_model(
-            config["EmbeddingModel"],
             config["itemResponseOriginalityModelDir"],
             config["itemResponseGenOutputFile"],
-            "originality",
+            config["shotSelectionMetric"],
             config[
                 "itemResponseGenOutputFile"
             ],  # we need to chop off most columns from the first instance, so send another copy to save to
             i,  # round
+            config["useItemScoringModelPeft"],
         )
 
 
@@ -319,17 +325,65 @@ class Consequences(AbstractTask):
         "oscai_scoring",
         "/home/aml7990/Code/creativity-item-generation/scorers/oscai_scoring.py",
     )
+
     def __init__(self) -> None:
         super().__init__()
         self.task_id = "consequences"
 
+    class CreativityScenarioResponseParser(BaseOutputParser):
+        @staticmethod
+        def parse(text: str) -> str:
+            # TODO: implement
+            pass
+
+    class CreativityScenarioItemParser(BaseOutputParser):
+        @staticmethod
+        def parse(text: str) -> str:
+            # TODO: implement
+            pass
+
+    @staticmethod
+    def RunItemGeneration(
+        word_list,
+        prompt: List[Tuple[str]],
+        llm,
+        previous_llm_output=None,
+        ratings_from_file=None,
+        item_shots: list = None,
+        numAttempts: int = 1,
+        task: str = None,
+    ):
+        # TODO: implement
+        pass
+
+    @staticmethod
+    def RunItemResponseGeneration(
+        problem,
+        prompt: List[Tuple[str]],
+        prompt_idx: int,
+        llm,
+        ethnicity: str = None,
+        gender: str = None,
+        industry: str = None,
+        title: str = None,
+        FirstName: str = None,
+        LastName: str = None,
+        Occuptaion: str = None,
+        Field: str = None,
+        Psychometric: str = None,
+    ):
+        # TODO: implement
+        pass
+
     # run scoring for the task
     # to ensure correct behavior, round must always be passed
+    # TODO: implement sentiment analysis scorer
     def RunScorers(self, i: int) -> None:
         self.oscai_scorer.predict_with_model(
             config["itemResponseGenOutputFile"],
             i,  # round
         )
+
 
 def init_task(config: dict):
     if config["task"] == "CPS":
