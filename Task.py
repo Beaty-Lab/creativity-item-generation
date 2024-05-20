@@ -379,22 +379,20 @@ class Consequences(AbstractTask):
             prompt_formatted = ChatPromptTemplate.from_messages(
                 prompt,
             )
-            human_query = prompt_formatted.messages[1].prompt.template
-            prompt_formatted.messages.pop()
 
             # I think put them as one message where the human lists some example items
             # TODO: make sure the items are properly formatted
             item_shots = _convert_to_message(
                 (
                     "human",  # TODO: refactor: add prompt template to prompts.py
-                    "\nHere are some more examples of high quality scenarios from other authors. Use these scenarios as guidance, but avoid drawing from them too heavily when developing your own:\n"
+                    "\nHere are some examples of high quality scenarios from other authors. Use these scenarios as guidance, but avoid drawing from them too heavily when developing your own:\n"
                     + "\n###\n".join(item_shots)
                     + f"""###
 
                         Scenario:""",
                 )
             )
-            prompt_formatted.messages.insert(1, item_shots)
+            prompt_formatted.messages.insert(len(prompt_formatted.messages), item_shots)
 
             # add AI feedback, if it exists
             if ratings_from_file is not None:
@@ -443,7 +441,8 @@ class Consequences(AbstractTask):
                 )
                 print(result)
             else:
-                result = validation_chain.invoke()
+                result = validation_chain.invoke({})
+                final_prompt = prompt_formatted.format()
                 print(result)
 
             return result, final_prompt
@@ -481,8 +480,36 @@ class Consequences(AbstractTask):
         Field: str = None,
         Psychometric: str = None,
     ):
-        # TODO: implement
-        pass
+        prompt_formatted = ChatPromptTemplate.from_messages(prompt)
+
+        chain = prompt_formatted | llm
+        if prompt_idx == 0:
+            result = chain.invoke({"scenario": problem})
+        # depending on the type of item response prompt, different demographices are needed and they map to a different prompt template
+        elif prompt_idx == 1:
+            result = chain.invoke(
+                {
+                    "scenario": problem,
+                    "ethnicity": ethnicity,
+                    "gender": gender,
+                    "industry": industry,
+                    "title": title,
+                }
+            )
+        elif prompt_idx == 2:
+            result = chain.invoke(
+                {
+                    "scenario": problem,
+                    "FirstName": FirstName,
+                    "LastName": LastName,
+                    "Occupation": Occuptaion,
+                    "Field": Field,
+                    "Psychometric": Psychometric,
+                }
+            )
+
+        result = Consequences.CreativityScenarioResponseParser.parse(result)
+        return result
 
     # run scoring for the task
     # to ensure correct behavior, round must always be passed

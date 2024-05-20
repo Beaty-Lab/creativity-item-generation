@@ -1,29 +1,29 @@
-TASK = "CPS"
+TASK = "consequences"
 config = {
     # must be one of CPS or consequences
     "task": TASK,
     
     # numeric params
     "random_seed": 666,
-    "numIter": 1,
+    "numIter": 2,
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
     "itemResponseGenFrequencyPenalty": 0.0,
     "itemGenPresencePenalty": 0.0,
     "itemEvalPresencePenalty": 0.0,
     "itemResponseGenPresencePenalty": 0.0,
-    "itemGenTemperature": 0.7,
+    "itemGenTemperature": 1.0,
     "itemEvalTemperature": 0.0,
     "itemResponseGenTemperature": 1.0,
     "itemGenTopP": 1.0,
     "itemEvalTopP": 1.0,
     "itemResponseGenTopP": 1.0,
-    "itemGenPromptIdx": 8,
+    "itemGenPromptIdx": 0,
     "itemEvalPromptIdx": 0,
     "itemResponseGenPromptIdx": 0,
-    "itemGenMaxTokens": 768,
+    "itemGenMaxTokens": 300,
     "itemEvalMaxTokens": 2048,
-    "itemResponseGenMaxTokens": 350,
+    "itemResponseGenMaxTokens": 50, # will be the same as the max for item gen if using the same model
     "numItemsPerList": 3,
     "numItemGenerationAttempts": 3,
     "itemGenNumShots": 1,
@@ -47,17 +47,21 @@ config = {
     "itemEvalModelName": "Locutusque/llama-3-neural-chat-v2.2-8B",
     "itemResponseGenModelName": "Locutusque/llama-3-neural-chat-v2.2-8B",
     "useItemEvalModel": False,
+    "useItemScoring": True, # only set to false if you want to generate a bunch of items without prompt optimization
     "useItemScoringModelPeft": False,
 
     # dataset dirs
-    "wordlistFile": "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
-    "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
+    "wordlistFile": None, #"/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
+    # if not using a wordlist, must specify the below to dicate how many items to generate on the first pass
+    "NumSeedItems": 1, 
+    # "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
+    "demographicsFile": None,
 
     # output dirs
-    "itemGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/consequences_test/items.json",
-    "itemEvalOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/consequences_test/items.json",
-    "itemResponseGenOutputFile": "/home/aml7990/Code/creativity-item-generation/outputs/consequences_test/item_responses",
-    "logFile": "/home/aml7990/Code/creativity-item-generation/outputs/consequences_test/log.txt",
+    "itemGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/llama-3-neural-chat-v2.2-8B_seed=666_prompt=0/items.json",
+    "itemEvalOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/llama-3-neural-chat-v2.2-8B_seed=666_prompt=0/items.json",
+    "itemResponseGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/llama-3-neural-chat-v2.2-8B_seed=666_prompt=0/item_responses",
+    "logFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/llama-3-neural-chat-v2.2-8B_seed=666_prompt=0/log.txt",
 
     # CTransformers
     "useCTransformers": False,
