@@ -1,11 +1,11 @@
+TASK = "consequences"
 config = {
-    "random_seed": 999,
-    "numIter": 5,
-    "itemGenModelName": "claude-3",
-    "useItemEvalModel": False,
-    "useItemResponseEvalModel": True,
-    "itemEvalModelName": "claude-3",
-    "itemResponseGenModelName": "meta-llama/Llama-2-7b-chat-hf",
+    # must be one of CPS or consequences
+    "task": TASK,
+    
+    # numeric params
+    "random_seed": 666,
+    "numIter": 1,
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
     "itemResponseGenFrequencyPenalty": 0.0,
@@ -18,26 +18,58 @@ config = {
     "itemGenTopP": 1.0,
     "itemEvalTopP": 1.0,
     "itemResponseGenTopP": 1.0,
-    "itemGenPromptIdx": 8,
+    "itemGenPromptIdx": 2,
     "itemEvalPromptIdx": 0,
-    "itemResponseGenPromptIdx": 2,
-    "itemGenMaxTokens": 768,
+    "itemResponseGenPromptIdx": 0,
+    "itemGenMaxTokens": 300,
     "itemEvalMaxTokens": 2048,
-    "itemResponseGenMaxTokens": 350,
-    "wordlistFile": "./creativity-item-generation/outputs/creative_wordlist_5_words.tsv",
-    "demographicsFile": "./creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
-    "itemGenOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/items.json",
-    "itemEvalOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/items.json",
-    "itemResponseGenOutputFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/item_responses",
+    "itemResponseGenMaxTokens": 50, # will be the same as the max for item gen if using the same model
     "numItemsPerList": 3,
     "numItemGenerationAttempts": 3,
-    "itemResponseOriginalityModelDir": "./creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
-    "itemResponseQualityModelDir": "./creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
-    "shotSelectionMetric": "originality",
     "itemGenNumShots": 4,
+    "numResponsesPerItem": 0,
+
+    # shot selection params
+    "EmbeddingModel": "all-MiniLM-L6-v2",
+
+    # non-numeric params
+    "shotSelectionMetric": "originality",
     "shotSelectionSort": "max",
     "shotSelectionAggregate": "mean",
     "shotSelectionAlgorithm": "constraint satisfaction",
-    "logFile": "./creativity-item-generation/outputs/without_eval_scores/with_controversial_filter_few_shot/claude-3_item_gen_claude-3_eval_max_gen_tokens_350_4_exemplars_cs_psychometric_seed_999/log.txt",
-    "numResponsesPerItem": 20,
+
+    # scoring models dirs (ignored for consequences which uses OCS)
+    "itemResponseOriginalityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
+    "itemResponseQualityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
+
+    # model dirs and flags
+    "itemGenModelName": "gpt-3.5-turbo",
+    "itemEvalModelName": "gpt-3.5-turbo",
+    "itemResponseGenModelName": "gpt-3.5-turbo",
+    "useItemEvalModel": False,
+    "useItemScoring": False, # only set to false if you want to generate a bunch of items without prompt optimization
+    "useItemScoringModelPeft": False,
+
+    # dataset dirs
+    "wordlistFile": None, #"/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
+    # if not using a wordlist, must specify the below to dicate how many items to generate on the first pass
+    "NumSeedItems": 20, 
+    # "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
+    "demographicsFile": None,
+
+    # output dirs
+    "itemGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/items.json",
+    "itemEvalOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/items.json",
+    "itemResponseGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/item_responses",
+    "logFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/log.txt",
+
+    # CTransformers
+    "useCTransformers": False,
+    "CTransformersNumGPULayers": 50,
+    "CTransformersItemGenTokenizer": "meta-llama/Llama-2-7b-chat-hf",
+    "CTransformersItemEvalTokenizer": "meta-llama/Llama-2-7b-chat-hf",
+    "CTransformersItemResponseGenTokenizer": "meta-llama/Llama-2-7b-chat-hf",
+
+    # prompt config file
+    "promptConfig": f"/home/aml7990/Code/creativity-item-generation/prompts/{TASK}_prompts.py"
 }

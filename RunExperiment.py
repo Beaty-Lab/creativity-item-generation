@@ -27,8 +27,10 @@ warnings.filterwarnings(
 
 import ItemGeneration, ItemEvaluation
 from SelectItemGenShots import SelectItemGenShots
+# from ETL import UploadtoDB
 
-from optimize_item_gen_prompt import GenerateCPSResponses, RLPS_RoBERTa
+from optimize_item_gen_prompt import GenerateCPSResponses 
+# RLPS_RoBERTa
 from config import config
 from key import OPENAI_KEY, GEMINI_KEY, ANTHROPIC_KEY
 
@@ -49,9 +51,14 @@ from transformers import (
 )
 from transformers import pipeline as hf_pipeline
 
-from ctransformers import AutoModelForCausalLM as CAutoModel
-from ctransformers import AutoTokenizer as CTokenizer
+from Task import init_task
+from Prompts import load_prompts
 
+# c-based transformers can be difficult to install correctly
+# no point importing them if they won't be used
+if config["useCTransformers"]:
+    from ctransformers import AutoModelForCausalLM as CAutoModel
+    from ctransformers import AutoTokenizer as CTokenizer
 
 # load all LLMs
 def _init_models(config: dict) -> Tuple:
@@ -120,7 +127,7 @@ def _init_models(config: dict) -> Tuple:
                 model = AutoModelForCausalLM.from_pretrained(
                     config["itemGenModelName"],
                     load_in_4bit=True,
-                    max_new_tokens=config["itemGenMaxTokens"],
+                    # max_new_tokens=config["itemGenMaxTokens"],
                     **model_kwargs,
                 )
 
@@ -225,7 +232,8 @@ def _init_models(config: dict) -> Tuple:
                 print(e)
                 log.writelines(str(e) + "\n")
             exit(-1)
-
+    else:
+        item_eval_llm = None
     try:
         if config["itemGenModelName"] == config["itemResponseGenModelName"]:
             item_response_llm = item_gen_llm
@@ -308,8 +316,12 @@ def _init_models(config: dict) -> Tuple:
             print(e)
             log.writelines(str(e) + "\n")
         exit(-1)
-
+    
     return item_gen_llm, item_eval_llm, item_response_llm
+
+
+# TODO: add your task to the init function
+# TODO: this can be moved to Task.py and just pass
 
 
 """
@@ -338,6 +350,12 @@ def RunExperiment(config: dict):
 
     item_gen_llm, item_eval_llm, item_response_llm = _init_models(config)
 
+    # TODO: generalize wordlist creation
+    item_gen_prompt, item_eval_prompt, item_response_gen_prompt, worlist_gen_prompt = load_prompts()
+    # TODO: the above is just prompt templates
+    # the task needs to create the final prompt
+    task = init_task(config)
+
     for i in range(config["numIter"]):
         with open(config["logFile"], "a") as log:
             print(f"Starting iteration {i} of experiment")
@@ -347,7 +365,7 @@ def RunExperiment(config: dict):
 
         if i == 0:
             ItemGeneration.create_scenarios(
-                config["itemGenPromptIdx"],
+                item_gen_prompt,
                 config["itemGenModelName"],
                 item_gen_llm,
                 i,  # round
@@ -360,13 +378,15 @@ def RunExperiment(config: dict):
                 config["numItemGenerationAttempts"],
                 input_file=None,
                 wordlist_file=config["wordlistFile"],
+                task_parser=task
             )
         elif i >= 1:
-            ItemGeneration.create_scenarios(
-                config["itemGenPromptIdx"],
+            if not config["useItemScoring"]:
+                ItemGeneration.create_scenarios(
+                item_gen_prompt,
                 config["itemGenModelName"],
                 item_gen_llm,
-                i,  # round
+                0,  # round
                 config["itemGenMaxTokens"],
                 config["itemGenPresencePenalty"],
                 config["itemGenFrequencyPenalty"],
@@ -379,11 +399,32 @@ def RunExperiment(config: dict):
                 ],  # TODO: make sure the output file is consistent from the item evaluator, etc
                 wordlist_file=config["wordlistFile"],
                 item_shots=item_shots,  # The k shots to give to the prompt
+                task_parser=task
             )
+            else:
+                ItemGeneration.create_scenarios(
+                    item_gen_prompt,
+                    config["itemGenModelName"],
+                    item_gen_llm,
+                    i,  # round
+                    config["itemGenMaxTokens"],
+                    config["itemGenPresencePenalty"],
+                    config["itemGenFrequencyPenalty"],
+                    config["itemGenTemperature"],
+                    config["itemGenTopP"],
+                    config["itemGenOutputFile"],
+                    config["numItemGenerationAttempts"],
+                    input_file=config[
+                        "itemGenOutputFile"
+                    ],  # TODO: make sure the output file is consistent from the item evaluator, etc
+                    wordlist_file=config["wordlistFile"],
+                    item_shots=item_shots,  # The k shots to give to the prompt
+                    task_parser=task
+                )
         # evaluate items
         if config["useItemEvalModel"]:
             ItemEvaluation.evaluate_scenarios(
-                config["itemEvalPromptIdx"],
+                item_eval_prompt,
                 config["itemEvalOutputFile"],
                 config["itemEvalModelName"],
                 item_eval_llm,
@@ -404,38 +445,36 @@ def RunExperiment(config: dict):
         # generate item responses
 
         # TODO: whether or not item eval was used should be check to make sure the correct file is updated.
-        GenerateCPSResponses.create_scenario_responses(
-            item_response_llm,
-            i,  # round
-            config["itemGenOutputFile"],
-            config["demographicsFile"],
-            config["itemResponseGenOutputFile"],
-            config["itemResponseGenModelName"],
-            config["numResponsesPerItem"],
-            config["itemResponseGenPromptIdx"],
-        )
+        if not config["useItemScoring"]:
+            GenerateCPSResponses.create_scenario_responses(
+                item_response_gen_prompt,
+                item_response_llm,
+                0,  # round
+                config["itemGenOutputFile"],
+                config["demographicsFile"],
+                config["itemResponseGenOutputFile"],
+                config["itemResponseGenModelName"],
+                config["numResponsesPerItem"],
+                config["itemResponseGenPromptIdx"],
+                task_parser=task,
+            )
+        else:
+            GenerateCPSResponses.create_scenario_responses(
+                item_response_gen_prompt,
+                item_response_llm,
+                i,  # round
+                config["itemGenOutputFile"],
+                config["demographicsFile"],
+                config["itemResponseGenOutputFile"],
+                config["itemResponseGenModelName"],
+                config["numResponsesPerItem"],
+                config["itemResponseGenPromptIdx"],
+                task_parser=task,
+            )
 
         # evaluate item responses
-        if config["useItemResponseEvalModel"]:  # TODO: why is this an arg?
-            RLPS_RoBERTa.predict_with_model(
-                config["itemResponseOriginalityModelDir"],
-                config["itemResponseGenOutputFile"],
-                "originality",
-                config[
-                    "itemResponseGenOutputFile"
-                ],  # we need to chop off most columns from the first instance, so send another copy to save to
-                i,  # round
-            )
-            RLPS_RoBERTa.predict_with_model(
-                config["itemResponseQualityModelDir"],
-                config["itemResponseGenOutputFile"],
-                "quality",
-                config[
-                    "itemResponseGenOutputFile"
-                ],  # we need to chop off most columns from the first instance, so send another copy to save to
-                i,  # round
-            )
-
+        if config["useItemScoring"]:
+            task.RunScorers(i)
             item_shots = SelectItemGenShots(
                 config["itemResponseGenOutputFile"],
                 config["shotSelectionMetric"],
@@ -446,6 +485,7 @@ def RunExperiment(config: dict):
                 config["random_seed"],
                 config["shotSelectionAlgorithm"],
             )
+    # TODO: add DB support for writing items, checking for similarity within database
 
 
 RunExperiment(config)

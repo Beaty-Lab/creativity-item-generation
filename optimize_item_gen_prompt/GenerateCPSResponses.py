@@ -16,94 +16,10 @@ from langchain.chat_models import ChatOpenAI
 
 # API key stored in key.py, and should NOT be committed
 from tqdm import tqdm
-from Prompts import item_response_gen_prompts
-
-
-# class for storing and manipulating prompts
-class PromptGenerator:
-    @staticmethod
-    def make_creative_scenario_response_prompt(scendario_prompt_idx: int):
-        # keep track of the different prompts
-        # TODO: move the base prompts to a separate file that is imported, passed to function
-        scenario_base_prompts = item_response_gen_prompts
-        creative_scenario_generation_prompt = ChatPromptTemplate.from_messages(
-            scenario_base_prompts[scendario_prompt_idx]
-        )
-        return creative_scenario_generation_prompt
-
-
-class CreativityScenarioResponseParser(BaseOutputParser):
-    # TODO: for the next round of items after feedback, get rid of everything generated before and after the start of the original item
-    @staticmethod
-    def parse(text: str) -> str:
-        try:
-            text = text.strip("\n").strip(" ")
-        except Exception:
-            # OpenAIs models with yield an AIMessage object
-            text = text.content.strip("\n").strip(" ")
-        # Remove intervening newlines
-        text = re.sub("\n", "", text)
-        text = re.sub("\t", "", text)
-
-        return text
-
-
-# TODO: refactor to parallelize
-# 0. once the sequential code is stable, commit to main
-# 1. change "chain" to "batch", which can invoke a chain on a batch of inputs
-# 2. pass the entire set of items, not just this one
-# 3. put this in a feature branch for parallelization
-# See: https://python.langchain.com/docs/expression_language/interface#batch
-# TODO: update
-def test_creative_response(
-    problem,
-    prompt_idx: int,
-    llm,
-    ethnicity: str = None,
-    gender: str = None,
-    industry: str = None,
-    title: str = None,
-    FirstName: str = None,
-    LastName: str = None,
-    Occuptaion: str = None,
-    Field: str = None,
-    Psychometric: str = None,
-):
-    prompt = PromptGenerator.make_creative_scenario_response_prompt(
-        prompt_idx
-    )  # the prompt type
-
-    chain = prompt | llm
-    if prompt_idx == 0:
-        result = chain.invoke({"creative_scenario": problem})
-    elif prompt_idx == 1:
-        result = chain.invoke(
-            {
-                "creative_scenario": problem,
-                "ethnicity": ethnicity,
-                "gender": gender,
-                "industry": industry,
-                "title": title,
-            }
-        )
-    elif prompt_idx == 2:
-        result = chain.invoke(
-            {
-                "creative_scenario": problem,
-                "FirstName": FirstName,
-                "LastName": LastName,
-                "Occupation": Occuptaion,
-                "Field": Field,
-                "Psychometric": Psychometric,
-            }
-        )
-
-    result = CreativityScenarioResponseParser.parse(result)
-
-    return result
 
 
 def create_scenario_responses(
+    item_response_gen_prompt,
     llm,
     round,
     input_file_name: str,
@@ -112,33 +28,19 @@ def create_scenario_responses(
     model_name: str,
     num_item_responses: int,
     prompt_idx: int,
+    task_parser,
 ):
     input_file = pd.read_json(input_file_name)
 
     if demographics_file is not None:
         demographics_file = pd.read_csv(demographics_file, index_col=0)
 
-    if demographics_file is not None:
-        # ai_responses = pd.DataFrame(
-        #     columns=[
-        #         f"creative_scenario_round_{round}",
-        #         f"creative_response_round_{round}",
-        #         f"ethnicity",
-        #         f"gender",
-        #         f"industry",
-        #         f"title",
-        #     ]
-        # )
-        ai_responses = pd.DataFrame(columns=demographics_file.columns)
-        ai_responses[f"creative_scenario_round_{round}"] = ""
-        ai_responses[f"creative_response_round_{round}"] = ""
-    else:
-        ai_responses = pd.DataFrame(
-            columns=[
-                f"creative_scenario_round_{round}",
-                f"creative_response_round_{round}",
-            ]
-        )
+    ai_responses = pd.DataFrame(
+        columns=[
+            f"creative_scenario_round_{round}",
+            f"creative_response_round_{round}",
+        ]
+    )
 
     for index, row in tqdm(input_file.iterrows(), total=input_file.shape[0]):
         # generate 30 responses to each scenario
@@ -158,9 +60,26 @@ def create_scenario_responses(
                 # especially for gemini models, the prompt may be blocked due to the safety filters
                 # in those cases, skip and move on
                 try:
-                    if prompt_idx == 1:  # demographics (biased)
-                        result = test_creative_response(
+                    if prompt_idx == 0:
+                        result = task_parser.RunItemResponseGeneration(
                             row[f"creative_scenario_round_{round}"],
+                            item_response_gen_prompt,
+                            prompt_idx,  # prompt_idx
+                            llm,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                    elif prompt_idx == 1:  # demographics (biased)
+                        result = task_parser.RunItemResponseGeneration(
+                            row[f"creative_scenario_round_{round}"],
+                            item_response_gen_prompt,
                             prompt_idx,  # prompt_idx
                             llm,
                             participant["Q15"].values[0],  # ethnicity
@@ -174,8 +93,9 @@ def create_scenario_responses(
                             None,
                         )
                     elif prompt_idx == 2:
-                        result = test_creative_response(
+                        result = task_parser.RunItemResponseGeneration(
                             row[f"creative_scenario_round_{round}"],
+                            item_response_gen_prompt,
                             prompt_idx,  # prompt_idx
                             llm,
                             None,
@@ -198,8 +118,9 @@ def create_scenario_responses(
                     continue
             else:
                 try:
-                    result = test_creative_response(
+                    result = task_parser.RunItemResponseGeneration(
                         row[f"creative_scenario_round_{round}"],
+                        item_response_gen_prompt,
                         prompt_idx,  # prompt_idx
                         llm,
                     )
@@ -211,7 +132,23 @@ def create_scenario_responses(
                     continue
 
             if demographics_file is not None:
-                if prompt_idx == 1:
+                if prompt_idx == 0:
+                    ai_responses = pd.concat(
+                        [
+                            ai_responses,
+                            pd.DataFrame(
+                                {
+                                    f"creative_scenario_round_{round}": row[
+                                        f"creative_scenario_round_{round}"
+                                    ],
+                                    f"creative_response_round_{round}": result,
+                                },
+                                index=[0],
+                            ),
+                        ],
+                        ignore_index=True,
+                    )
+                elif prompt_idx == 1:
                     ai_responses = pd.concat(
                         [
                             ai_responses,

@@ -1,3 +1,5 @@
+# TODO: need to completely rewrite this when we're ready to integrate the code
+# Follow the same refactoring as item gen
 # Using LLMs to evaluate the quality of CPS items
 import time
 import torch
@@ -14,8 +16,6 @@ from langchain.schema import BaseOutputParser
 # TODO: add support for other api models called directly from this script
 from key import OPENAI_KEY
 from tqdm import tqdm
-
-from Prompts import item_eval_prompts
 
 
 class CreativityScenarioItemEvaluationParser(BaseOutputParser):

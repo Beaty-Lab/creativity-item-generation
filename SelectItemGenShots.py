@@ -20,6 +20,7 @@ def SelectItemGenShots(
 ):
     if shotSelectionAlgorithm == "constraint satisfaction":
         return ConstraintSatisfaction(
+            config["EmbeddingModel"],
             itemPool,
             shotSelectionMetric,
             itemGenNumShots,
@@ -65,6 +66,7 @@ def SelectItemGenShots(
 # debug constrained optimization of item gen selection using results from prior greedy runs
 # will always use the greedy selection from the prior round to seed the select paramters
 def ConstraintSatisfaction(
+    embeddingModel: str,
     itemPool: str,
     shotSelectionMetric: str,
     itemGenNumShots: int,
@@ -77,7 +79,7 @@ def ConstraintSatisfaction(
     originality_gamma: float = 0.002,
 ):
     embedding_model = SentenceTransformer(
-        "all-MiniLM-L6-v2"
+        embeddingModel
     )  # TODO: make an arg for config
 
     itemPoolDf = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
