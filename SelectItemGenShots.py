@@ -20,6 +20,7 @@ def SelectItemGenShots(
 ):
     if shotSelectionAlgorithm == "constraint satisfaction":
         return ConstraintSatisfaction(
+            config["EmbeddingModel"],
             itemPool,
             shotSelectionMetric,
             itemGenNumShots,

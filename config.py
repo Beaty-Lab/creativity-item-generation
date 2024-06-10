@@ -5,7 +5,7 @@ config = {
     
     # numeric params
     "random_seed": 666,
-    "numIter": 2,
+    "numIter": 1,
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
     "itemResponseGenFrequencyPenalty": 0.0,
@@ -18,7 +18,7 @@ config = {
     "itemGenTopP": 1.0,
     "itemEvalTopP": 1.0,
     "itemResponseGenTopP": 1.0,
-    "itemGenPromptIdx": 0,
+    "itemGenPromptIdx": 2,
     "itemEvalPromptIdx": 0,
     "itemResponseGenPromptIdx": 0,
     "itemGenMaxTokens": 300,
@@ -26,8 +26,8 @@ config = {
     "itemResponseGenMaxTokens": 50, # will be the same as the max for item gen if using the same model
     "numItemsPerList": 3,
     "numItemGenerationAttempts": 3,
-    "itemGenNumShots": 1,
-    "numResponsesPerItem": 1,
+    "itemGenNumShots": 4,
+    "numResponsesPerItem": 0,
 
     # shot selection params
     "EmbeddingModel": "all-MiniLM-L6-v2",
@@ -43,25 +43,25 @@ config = {
     "itemResponseQualityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
 
     # model dirs and flags
-    "itemGenModelName": "Locutusque/llama-3-neural-chat-v2.2-8B",
-    "itemEvalModelName": "Locutusque/llama-3-neural-chat-v2.2-8B",
-    "itemResponseGenModelName": "Locutusque/llama-3-neural-chat-v2.2-8B",
+    "itemGenModelName": "gpt-3.5-turbo",
+    "itemEvalModelName": "gpt-3.5-turbo",
+    "itemResponseGenModelName": "gpt-3.5-turbo",
     "useItemEvalModel": False,
-    "useItemScoring": True, # only set to false if you want to generate a bunch of items without prompt optimization
+    "useItemScoring": False, # only set to false if you want to generate a bunch of items without prompt optimization
     "useItemScoringModelPeft": False,
 
     # dataset dirs
     "wordlistFile": None, #"/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
     # if not using a wordlist, must specify the below to dicate how many items to generate on the first pass
-    "NumSeedItems": 1, 
+    "NumSeedItems": 20, 
     # "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
     "demographicsFile": None,
 
     # output dirs
-    "itemGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/llama-3-neural-chat-v2.2-8B_seed=666_prompt=0/items.json",
-    "itemEvalOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/llama-3-neural-chat-v2.2-8B_seed=666_prompt=0/items.json",
-    "itemResponseGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/llama-3-neural-chat-v2.2-8B_seed=666_prompt=0/item_responses",
-    "logFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/llama-3-neural-chat-v2.2-8B_seed=666_prompt=0/log.txt",
+    "itemGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/items.json",
+    "itemEvalOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/items.json",
+    "itemResponseGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/item_responses",
+    "logFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/log.txt",
 
     # CTransformers
     "useCTransformers": False,

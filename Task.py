@@ -333,13 +333,26 @@ class Consequences(AbstractTask):
     class CreativityScenarioResponseParser(BaseOutputParser):
         @staticmethod
         def parse(text: str) -> str:
+            forbidden_strings = [
+                "causing",
+                "leads to",
+                "resulting in",
+                "revolutionizes",
+            ]
             try:
-                text = text.split("Consequences:")[1]
+                if "Consequences:" in text:
+                    text = text.split("Consequences:")[1]
                 text = text.strip("\n").strip(" ")
             except Exception:
                 # OpenAIs models with yield an AIMessage object
-                text = text.content.split("Consequences:")[1]
+                if "Consequences:" in text.content:
+                    text = text.content.split("Consequences:")[1]
                 text = text.strip("\n").strip(" ")
+
+            for f in forbidden_strings:
+                if f in text:
+                    print("Scenario contains forbidden string.")
+                    raise OutputParserException("Scenario contains forbidden string.")
             # Remove intervening newlines
             text = re.sub("\n", "", text)
             text = re.sub("\t", "", text)

@@ -130,16 +130,27 @@ def create_scenarios(
             # ]
             # generation may fail due to google API filters
             try:
-                result, prompt = task_parser.RunItemGeneration(
-                    row["word_list"],
-                    item_gen_prompt,
-                    llm,
-                    previous_llm_output=row[f"creative_scenario_round_{round-1}"],
-                    ratings_from_file=row[f"ratings_round_{round-1}"],
-                    item_shots=item_shots,
-                    numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
-                )
-                print(result)
+                if wordlist_file != None:
+                    result, prompt = task_parser.RunItemGeneration(
+                        row["word_list"],
+                        item_gen_prompt,
+                        llm,
+                        previous_llm_output=row[f"creative_scenario_round_{round-1}"],
+                        ratings_from_file=row[f"ratings_round_{round-1}"],
+                        item_shots=item_shots,
+                        numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
+                    )
+                    print(result)
+                elif wordlist_file == None:
+                    result, prompt = task_parser.RunItemGeneration(
+                        item_gen_prompt,
+                        llm,
+                        previous_llm_output=row[f"creative_scenario_round_{round-1}"],
+                        ratings_from_file=row[f"ratings_round_{round-1}"],
+                        item_shots=item_shots,
+                        numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
+                    )
+                    print(result)
 
             except Exception as e:
                 with open(config["logFile"], "a") as log:
