@@ -1,4 +1,7 @@
-TASK = "consequences"
+import torch
+from peft import LoraConfig, TaskType
+
+TASK = "CPS"
 config = {
     # must be one of CPS or consequences
     "task": TASK,
@@ -63,13 +66,55 @@ config = {
     "itemResponseGenOutputFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/item_responses",
     "logFile": f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/gpt-3.5-turbo_seed=666_prompt=2/log.txt",
 
-    # CTransformers
+    ## CTransformers ##
     "useCTransformers": False,
     "CTransformersNumGPULayers": 50,
     "CTransformersItemGenTokenizer": "meta-llama/Llama-2-7b-chat-hf",
     "CTransformersItemEvalTokenizer": "meta-llama/Llama-2-7b-chat-hf",
     "CTransformersItemResponseGenTokenizer": "meta-llama/Llama-2-7b-chat-hf",
 
-    # prompt config file
-    "promptConfig": f"/home/aml7990/Code/creativity-item-generation/prompts/{TASK}_prompts.py"
+    ## prompt config file ##
+    "promptConfig": f"/home/aml7990/Code/creativity-item-generation/prompts/{TASK}_prompts.py",
+
+    ## scorer training params ##
+    "scorerBaseModel": "meta-llama/Llama-2-7b-chat-hf",
+    "scorerDataPath": "/home/aml7990/Code/creativity-item-generation/datasets/cps/cleaned/CPSTfulldataset3-standarized.csv",
+    "scorerInputColumn": "SolutionsWithProblem",
+    "scorerLabelColumn": "FacScoresO",
+    "scorerOutputDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/CPS/test/",
+    "scorerType": "PEFT",
+    "use_sweep": False,
+    "ScorerClass": LoraConfig,
+    "WandbProjectName": "ARI-year2-scorers",
+    "lr": 0.01,
+    "epochs": 1,
+    "batchSize": 1,
+
+    # Lora params
+    "lora_r": 8,
+    "lora_alpha": 32,
+    "lora_dropout": 0.1,
+    "lora_target_modules": ["q_proj", "v_proj"],
+    "peft_type": TaskType.SEQ_CLS,
+
+    # quantization
+    "load_in_8bit": True,
+    "load_in_4bit": False,
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": True,
+    "bnb_4bit_compute_dtype": torch.bfloat16,
+
+
 }
+
+if config["scorerType"] == "PEFT":
+    if config["ScorerClass"] == LoraConfig:
+        peft_config = LoraConfig(
+            r=config["lora_r"],
+            lora_alpha=config["lora_alpha"],
+            lora_dropout=config["lora_dropout"],
+            bias="none",
+            task_type=config["peft_type"],
+            target_modules=config["lora_target_modules"],
+        )
+# TODO: implement other configs, add quantization config
