@@ -4,15 +4,12 @@
     Add OFT/BOFT if time permitting and performance justifies it
 """
 
-import evaluate
-import io
 import numpy as np
 import pandas as pd
 import torch
 import os
 import wandb
 from datasets import Dataset, load_metric, DatasetDict
-from sklearn.preprocessing import StandardScaler
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
@@ -20,13 +17,10 @@ from transformers import (
     Trainer,
 )
 from peft import AutoPeftModel, prepare_model_for_kbit_training
-from transformers.trainer_utils import IntervalStrategy
 from accelerate import Accelerator
-import time
 import transformers
 from scipy.stats import spearmanr, pearsonr
-from peft import LoraConfig, TaskType, get_peft_model, PeftConfig
-import json as js
+from peft import get_peft_model, PeftConfig
 from transformers import (
     TrainerState,
     TrainerControl,
@@ -64,10 +58,10 @@ class PeftModel:
             self.config = config
         self.run = wandb.init(
             project=config["WandbProjectName"],
-        )  # TODO: make project an arg
+        )
         
         model = AutoModelForSequenceClassification.from_pretrained(
-            config["scorerBaseModel"], num_labels=1  # TODO: clean this up
+            config["scorerBaseModel"], num_labels=1
         )  # labels = 1 is for regression
 
         if "llama" in config["scorerBaseModel"]:
@@ -102,7 +96,7 @@ class PeftModel:
 
         d = pd.read_csv(
             self.config["scorerDataPath"],
-        ).sample(frac=1).iloc[:200] # TODO: delete
+        ).sample(frac=1)
 
         np.random.seed(self.config["random_seed"])  # sets a randomization seed for reproducibility
         transformers.set_seed(self.config["random_seed"])
