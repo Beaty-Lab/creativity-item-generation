@@ -9,17 +9,16 @@ import pandas as pd
 import torch
 import os
 import wandb
-from datasets import Dataset, load_metric, DatasetDict
+from datasets import Dataset, DatasetDict
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
     TrainingArguments,
     Trainer,
 )
-from peft import AutoPeftModel, prepare_model_for_kbit_training
 from accelerate import Accelerator
 import transformers
-from scipy.stats import spearmanr, pearsonr
+from scipy.stats import spearmanr
 from peft import get_peft_model, PeftConfig
 from transformers import (
     TrainerState,
@@ -27,6 +26,7 @@ from transformers import (
     TrainerCallback,
 )
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+from os.path import join
 
 
 class SavePeftModelCallback(TrainerCallback):
@@ -61,8 +61,8 @@ class PeftModel:
         )
         
         model = AutoModelForSequenceClassification.from_pretrained(
-            config["scorerBaseModel"], num_labels=1
-        )  # labels = 1 is for regression
+            config["scorerBaseModel"], num_labels=1, device_map="auto"
+        )
 
         if "llama" in config["scorerBaseModel"]:
             model.config.pad_token_id = model.config.eos_token_id
@@ -127,7 +127,8 @@ class PeftModel:
         )  # applies wrapper to our dataset
 
         training_args = TrainingArguments(
-            output_dir=self.config["scorerOutputDir"],
+            # TODO: append wandb id to output dir
+            output_dir=join(self.config["scorerOutputDir"], "PEFT"),
             report_to="wandb",
             learning_rate=self.config["lr"],
             num_train_epochs=self.config["epochs"],
@@ -138,6 +139,7 @@ class PeftModel:
             save_strategy="epoch",
             evaluation_strategy="epoch",
             save_total_limit=1,
+            fp16=self.config["use_fp16"],
         )
 
         trainer = accelerator.prepare(
