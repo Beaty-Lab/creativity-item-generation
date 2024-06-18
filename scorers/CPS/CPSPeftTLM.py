@@ -27,6 +27,7 @@ from transformers import (
 )
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 from os.path import join
+from peft import LoraConfig, TaskType
 
 
 class SavePeftModelCallback(TrainerCallback):
@@ -53,7 +54,23 @@ class SavePeftModelCallback(TrainerCallback):
 class PeftModel:
     def __init__(self, config: dict, peft_config: PeftConfig):
         if config["use_sweep"]:
-            self.config = wandb.config
+            self.config = config
+            peft_config = LoraConfig(
+                r=wandb.config.lora_r,
+                lora_alpha=wandb.config.lora_alpha,
+                lora_dropout=wandb.config.lora_dropout,
+                bias="none",
+                task_type=TaskType.SEQ_CLS,
+                target_modules=wandb.config.lora_target_modules,
+            )
+            self.config["lr"] = wandb.config.learning_rate
+            self.config["batchSize"] = wandb.config.batch_size
+            self.config["lora_dropout"] = wandb.config.lora_dropout
+            self.config["lora_r"] = wandb.config.lora_r
+            self.config["lora_target_modules"] = wandb.config.lora_target_modules
+            self.config["epochs"] = wandb.config.num_train_epochs
+            self.config["scorerBaseModel"] = wandb.config.scorerBaseModel
+
         else:
             self.config = config
         self.run = wandb.init(
@@ -147,14 +164,14 @@ class PeftModel:
                 model=self.peft_model,
                 args=training_args,
                 train_dataset=tokenized_datasets["train"],
-                eval_dataset=tokenized_datasets["heldout"],
+                eval_dataset=tokenized_datasets["test"],
                 compute_metrics=self.compute_metrics,
                 tokenizer=self.tokenizer,
             )
         )
 
         trainer.train()
-        prediction = trainer.predict(tokenized_datasets["heldout"])
+        prediction = trainer.predict(tokenized_datasets["test"])
         wandb.finish()
 
     def predict(self, prediction_name: str, output_file_name: str, round: int):
