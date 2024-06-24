@@ -19,7 +19,7 @@ from transformers import (
 from accelerate import Accelerator
 import transformers
 from scipy.stats import spearmanr
-from peft import get_peft_model, PeftConfig
+from peft import get_peft_model, PeftConfig, PeftType, PromptEncoderConfig
 from transformers import (
     TrainerState,
     TrainerControl,
@@ -30,6 +30,7 @@ from os.path import join
 from peft import LoraConfig, TaskType
 
 
+# TODO: is this used anywhere?
 class SavePeftModelCallback(TrainerCallback):
     def on_save(
         self,
@@ -53,49 +54,91 @@ class SavePeftModelCallback(TrainerCallback):
 
 class PeftModel:
     def __init__(self, config: dict, peft_config: PeftConfig):
-        if config["use_sweep"]:
-            self.config = config
-            peft_config = LoraConfig(
-                r=wandb.config.lora_r,
-                lora_alpha=wandb.config.lora_alpha,
-                lora_dropout=wandb.config.lora_dropout,
-                bias="none",
-                task_type=TaskType.SEQ_CLS,
-                target_modules=wandb.config.lora_target_modules,
+        if config["scorerType"] == "LoRA":
+            self.run = wandb.init(
+                project=config["WandbProjectName"],
             )
-            self.config["lr"] = wandb.config.learning_rate
-            self.config["batchSize"] = wandb.config.batch_size
-            self.config["lora_dropout"] = wandb.config.lora_dropout
-            self.config["lora_r"] = wandb.config.lora_r
-            self.config["lora_target_modules"] = wandb.config.lora_target_modules
-            self.config["epochs"] = wandb.config.num_train_epochs
-            self.config["scorerBaseModel"] = wandb.config.scorerBaseModel
+            if config["use_sweep"]:
+                self.config = config
+                peft_config = LoraConfig(
+                    r=wandb.config.lora_r,
+                    lora_alpha=config["lora_alpha"],
+                    lora_dropout=wandb.config.lora_dropout,
+                    bias="none",
+                    task_type=TaskType.SEQ_CLS,
+                    target_modules=wandb.config.lora_target_modules,
+                )
+                self.config["lr"] = wandb.config.learning_rate
+                self.config["batchSize"] = wandb.config.batch_size
+                self.config["lora_dropout"] = wandb.config.lora_dropout
+                self.config["lora_r"] = wandb.config.lora_r
+                self.config["lora_target_modules"] = wandb.config.lora_target_modules
+                self.config["epochs"] = wandb.config.num_train_epochs
+                self.config["scorerBaseModel"] = wandb.config.scorer_base_model
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    wandb.config.scorer_base_model, num_labels=1, device_map="auto"
+                )
 
-        else:
-            self.config = config
-        self.run = wandb.init(
-            project=config["WandbProjectName"],
-        )
-        
-        model = AutoModelForSequenceClassification.from_pretrained(
-            config["scorerBaseModel"], num_labels=1, device_map="auto"
-        )
+            else:
+                self.config = config
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    config["scorerBaseModel"], num_labels=1, device_map="auto"
+                )
 
-        if "llama" in config["scorerBaseModel"]:
-            model.config.pad_token_id = model.config.eos_token_id
 
-        self.peft_config = peft_config
-        self.peft_model = get_peft_model(model, peft_config)
-        wandb.watch(self.peft_model)
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            peft_config.base_model_name_or_path
-        )
+            if "llama" in config["scorerBaseModel"]:
+                model.config.pad_token_id = model.config.eos_token_id
 
-        if "llama" in config["scorerBaseModel"]:
-            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.peft_config = peft_config
+            self.peft_model = get_peft_model(model, peft_config)
+            wandb.watch(self.peft_model)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                peft_config.base_model_name_or_path
+            )
 
-        
+            if "llama" in config["scorerBaseModel"]:
+                self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+        elif config["scorerType"] == "P-tuning":
+            self.run = wandb.init(
+                project=config["WandbProjectName"],
+            )
+            if config["use_sweep"]:
+                self.config = config
+                peft_config = PromptEncoderConfig(
+                    task_type="SEQ_CLS",
+                    num_virtual_tokens=wandb.config.num_virtual_tokens,
+                    encoder_hidden_size=wandb.config.encoder_hidden_size,
+                )
+                self.config["numVirtualTokens"] = wandb.config.num_virtual_tokens
+                self.config["encoderHiddenSize"] = wandb.config.encoder_hidden_size
+                self.config["lr"] = wandb.config.learning_rate
+                self.config["batchSize"] = wandb.config.batch_size
+                self.config["epochs"] = wandb.config.num_train_epochs
+                self.config["scorerBaseModel"] = wandb.config.scorer_base_model
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    wandb.config.scorer_base_model, num_labels=1, device_map="auto"
+                )
+
+            else:
+                self.config = config
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    config["scorerBaseModel"], num_labels=1, device_map="auto"
+                )
+
+            if "llama" in config["scorerBaseModel"]:
+                model.config.pad_token_id = model.config.eos_token_id
+
+            self.peft_config = peft_config
+            self.peft_model = get_peft_model(model, peft_config)
+            wandb.watch(self.peft_model)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                peft_config.base_model_name_or_path
+            )
+
+            if "llama" in config["scorerBaseModel"]:
+                self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+                self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def tokenize_function(self, examples: Dataset):
         return self.tokenizer(examples["text"], truncation=True, padding=True)
@@ -115,7 +158,9 @@ class PeftModel:
             self.config["scorerDataPath"],
         ).sample(frac=1)
 
-        np.random.seed(self.config["random_seed"])  # sets a randomization seed for reproducibility
+        np.random.seed(
+            self.config["random_seed"]
+        )  # sets a randomization seed for reproducibility
         transformers.set_seed(self.config["random_seed"])
 
         # SET UP DATASET
@@ -145,7 +190,7 @@ class PeftModel:
 
         training_args = TrainingArguments(
             # TODO: append wandb id to output dir
-            output_dir=join(self.config["scorerOutputDir"], "PEFT"),
+            output_dir=join(self.config["scorerOutputDir"], self.config["scorerType"]),
             report_to="wandb",
             learning_rate=self.config["lr"],
             num_train_epochs=self.config["epochs"],
@@ -176,7 +221,9 @@ class PeftModel:
 
     def predict(self, prediction_name: str, output_file_name: str, round: int):
         accelerator = Accelerator()
-        np.random.seed(self.config["random_seed"])  # sets a randomization seed for reproducibility
+        np.random.seed(
+            self.config["random_seed"]
+        )  # sets a randomization seed for reproducibility
         transformers.set_seed(self.config["random_seed"])
 
         # use the trained autoscorer to get results on new item responses# item_responses and save_file should point to the same file

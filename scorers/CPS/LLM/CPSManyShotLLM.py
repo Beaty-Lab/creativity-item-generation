@@ -153,7 +153,7 @@ def LLMTrial():
     try:
         if few_shot_config["ModelName"] == "claude-3":
             model = ChatAnthropic(
-                model_name="claude-3-haiku-20240307",  # TODO: no hard code here
+                model_name="claude-3-sonnet-20240229",  # TODO: no hard code here
                 max_tokens_to_sample=few_shot_config["MaxTokens"],
                 temperature=few_shot_config["Temperature"],
                 anthropic_api_key=ANTHROPIC_KEY,

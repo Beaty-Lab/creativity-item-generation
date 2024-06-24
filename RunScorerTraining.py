@@ -2,8 +2,9 @@
     Executes training for a given scoring model
     Shares the same confid as CPIG
 """
+import wandb
 from config import config, peft_config
-from scorers.CPS import CPSFinetuneTLM, CPSPeftTLM, CPSPromptedLLM, CPSSetFit
+from scorers.CPS import CPSFinetuneTLM, CPSPeftTLM, CPSSetFit, CPSDSI
 from scorers.consequences import *
 
 # define a mapping from tasks to possible scorers
@@ -12,10 +13,11 @@ from scorers.consequences import *
 scorer_map = {
     "consequences": {},
     "CPS": {
-        "Semantic Distance": None,
+        "Semantic Distance": CPSDSI.DSIModel,
         "Finetuned": CPSFinetuneTLM,
-        "PEFT": CPSPeftTLM.PeftModel,
-        "Prompted LLM": CPSPromptedLLM,
+        "LoRA": CPSPeftTLM.PeftModel,
+        "P-tuning": CPSPeftTLM.PeftModel,
+        # "Prompted LLM": CPSPromptedLLM, # TODO: properly integrate when ready
         "SetFit": CPSSetFit
     }
 }
@@ -26,7 +28,10 @@ if __name__ == "__main__":
         exit(-1)
     elif config["task"] == "CPS":
         try:
-            Scorer = scorer_map[config["task"]][config["scorerType"]](config, peft_config)
+            if config["scorerType"] == "P-tuning" or config["scorerType"] == "LoRA":
+                Scorer = scorer_map[config["task"]][config["scorerType"]](config, peft_config)
+            else:
+                Scorer = scorer_map[config["task"]][config["scorerType"]](config)
         except Exception as e:
             print(e)
             exit(-1)
