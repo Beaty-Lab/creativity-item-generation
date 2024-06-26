@@ -19,7 +19,7 @@ from scipy.stats import spearmanr
 from os.path import join
 from pathlib import Path
 from typing import List
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain_huggingface import HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSeq2SeqLM
 from transformers import BitsAndBytesConfig
 from tqdm import tqdm
@@ -86,7 +86,7 @@ def PrepareFewShotDataset(df: str, item: str) -> List:
     test = test[test["ProblemID"] == item]
     train = train.filter(["Solutions", "text", "label"], axis=1)
     test = test.filter(["Solutions", "text", "label"], axis=1)
-    heldout = heldout.filter(["text", "label"], axis=1)
+    heldout = heldout.filter(["ProblemFull","Solutions", "text", "label"], axis=1)
     return problem, train, test, heldout
 
 
@@ -183,7 +183,6 @@ def LLMTrial():
                 print("Specified assistant not found!")
         else:
             bnb_config = bnb_config = BitsAndBytesConfig(
-                bnb_16bit_compute_dtype=torch.bfloat16,
                 bnb_4bit_compute_dtype=torch.float16,
             )
             model_kwargs = {
@@ -205,6 +204,9 @@ def LLMTrial():
             )
             if model.config.pad_token_id is None:
                 model.config.pad_token_id = model.config.eos_token_id
+            
+            pipeline = hf_pipeline("text-generation", model=model, tokenizer=tokenizer, max_new_tokens=5)
+            model = HuggingFacePipeline(pipeline=pipeline)
 
     except Exception as e:
         with open(few_shot_config["logFile"], "a") as log:
@@ -214,52 +216,44 @@ def LLMTrial():
 
     # main inference loop
     if few_shot_config["use_test_set"]:  # TODO: update
-        for index, row in tqdm(test_df.iterrows(), total=len(test_df)):
+        for index, row in tqdm(heldout_df.iterrows(), total=len(heldout_df)):
             # invoke the llm to predict the val sample
-            prompt_f = prompt.format(
-                **{
-                    "examples": " ".join(train_shots),
-                    "exemplar": row["text"] + " Label: ",
-                }
-            )
-            if few_shot_config["PromptIdx"] == 1:  # zero shot chain of thought
-                input_ids = tokenizer(
-                    prompt_f, padding=True, return_tensors="pt"
-                ).input_ids.cuda()
-                prompt_cot = model.generate(input_ids, max_new_tokens=40)
-                prompt_cot = tokenizer.batch_decode(
-                    prompt_cot, skip_special_tokens=True
-                )[0]
-                prompt_0 = prompt_cot + "Label: 0"
-                prompt_1 = prompt_cot + "Label: 1"
-            else:
-                prompt_0 = prompt_f + " 0"
-                prompt_1 = prompt_f + " 1"
-            if "t5" in few_shot_config["ModelName"]:
-                # the logprob function doesn't work for t5, '1' seems to be a special token
-                # so we have no choice but to rely on standard text generation.
-                if few_shot_config["PromptIdx"] == 1:
-                    t5_prompt = prompt_cot
-                else:
-                    t5_prompt = prompt_f
+            if "asst" in few_shot_config["ModelName"]:
+                thread = client.beta.threads.create()
+                final_prompt = prompt.format(**{
+                        "exemplar": row["Solutions"],
+                }).replace("System:","").replace("Human:","") + " Originality:"
 
-                input_ids = tokenizer(
-                    t5_prompt, padding=True, return_tensors="pt"
-                ).input_ids.cuda()
-                pred = tokenizer.batch_decode(
-                    model.generate(input_ids, max_new_tokens=2),
-                    skip_special_tokens=True,
-                )[0]
-                try:
-                    pred = int(pred)
-                except Exception:
-                    pred = choice([0, 1])
-                test_df.at[index, "pred_label"] = pred
+                message = client.beta.threads.messages.create(
+                    thread_id=thread.id,
+                    role="user",
+                    content=final_prompt,
+                )
+                run = client.beta.threads.runs.create_and_poll(
+                    thread_id=thread.id,
+                    assistant_id=model.id,
+                )
+                result = client.beta.threads.messages.list(
+                    thread_id=thread.id
+                ).data[0].content[0].text.value
             else:
-                prob_0 = to_tokens_and_logprobs(model, tokenizer, prompt_0)[0][-1][1]
-                prob_1 = to_tokens_and_logprobs(model, tokenizer, prompt_1)[0][-1][1]
-                pred = np.argmax([prob_0, prob_1])
-                test_df.at[index, "pred_label"] = pred
+                completion_chain = prompt | model | StrOutputParser()
+                result = completion_chain.invoke(
+                    {
+                        "examples": "\n###\n".join(train_shots),
+                        "exemplar": row["Solutions"] + " Label: ",
+                        "heldout_problem": row["ProblemFull"],
+                        "train_problem": problem
+                    }
+                )
+            try:
+                result = int(result)
+            except Exception:
+                if result[-1].isdigit():
+                    result = int(result[-1])
+                else:
+                    result = choice([0, 1, 2, 3])
+            heldout_df.at[index, "pred_label"] = result
     else:
         for index, row in tqdm(test_df.iterrows(), total=len(test_df)):
             # invoke the llm to predict the val sample
@@ -286,8 +280,8 @@ def LLMTrial():
                 result = completion_chain.invoke(
                     {
                         "examples": "\n###\n".join(train_shots),
-                        "exemplar": row["Solutions"] + " Label: ",
                         "problem": problem,
+                        "exemplar": row["Solutions"] + " Label: ",
                     }
                 )
             try:
