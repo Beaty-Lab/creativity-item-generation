@@ -1,2 +1,11 @@
 key.py
 *.pyc
+datasets/creative_short_stories/GCP_RawData.csv
+*.csv
+*.json
+*.pt
+*.pth
+*.yaml
+*.txt
+*.log
+*.wandb
