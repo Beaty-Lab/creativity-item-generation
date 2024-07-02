@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import torch
 
-# import wandb
+import wandb
 import evaluate
 import json
 import transformers
@@ -29,7 +29,7 @@ from openai import OpenAI
 
 # Claude
 from langchain_anthropic import ChatAnthropic
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from transformers import pipeline as hf_pipeline
 from langchain.prompts.chat import ChatPromptTemplate
 from langchain.prompts import PromptTemplate
@@ -55,21 +55,21 @@ def compute_metrics(predictions, references):
     accuracy = accuracy.compute(predictions=predictions, references=references)[
         "accuracy"
     ]
-    correlation = spearmanr(predictions, references)
+    correlation = spearmanr(predictions, references)[0]
     return {"accuracy": accuracy, "Spearman Correlation": correlation}
 
 
 # a version of the data prep function for prompting
-def PrepareFewShotDataset(df: str, item: str) -> List:
+def PrepareFewShotDataset(df: str, item: str, test_set: str, metric: str) -> List:
     d = pd.read_csv(df)
     d.dropna(inplace=True)
     d = d.sample(frac=1.0)
     # convert labels using the quartiles approach
-    describe = d["FacScoresO"].describe()
+    describe = d[metric].describe()
     lower_quartile = describe["25%"]
     middle_quartile = describe["50%"]
     upper_quartile = describe["75%"]
-    d["label"] = d["FacScoresO"].apply(
+    d["label"] = d[metric].apply(
         lambda x: (
             0
             if x < lower_quartile
@@ -80,33 +80,35 @@ def PrepareFewShotDataset(df: str, item: str) -> List:
     d["text"] = "Problem: " + d[INPUT_COL] + "\nResponse: " + d[RESPONSE_COL] + "\n"
     problem = d[d["ProblemID"] == item].iloc[0]["ProblemFull"]
     train = d[d["set"] == "training"]
-    test = d[d["set"] == "test"]
-    heldout = d[d["set"] == "heldout"]
+    dev = d[d["set"] == "dev"]
+    test = d[d["set"] == test_set]
     train = train[train["ProblemID"] == item]
-    test = test[test["ProblemID"] == item]
+    dev = dev[dev["ProblemID"] == item]
+    if test_set == "test":
+        test = test[test["ProblemID"] == item]
+
     train = train.filter(["Solutions", "text", "label"], axis=1)
-    test = test.filter(["Solutions", "text", "label"], axis=1)
-    heldout = heldout.filter(["ProblemFull","Solutions", "text", "label"], axis=1)
-    return problem, train, test, heldout
+    dev = dev.filter(["Solutions", "text", "label"], axis=1)
+    test = test.filter(["ProblemFull", "Solutions", "text", "label"], axis=1)
+    return problem, train, dev, test
 
 
 def LLMTrial():
-    # if not few_shot_config["use_sweep"]:
-    #     wandb.init(
-    #         project="LLM Invalid Response Detection",
-    #         config={
-    #             "model": few_shot_config["ModelName"],
-    #             "task": few_shot_config["Task"],
-    #             "NumShots": few_shot_config["NumShots"],
-    #             "Temperature": few_shot_config["Temperature"],
-    #             "TopP": few_shot_config["TopP"],
-    #             "seed": few_shot_config["random_seed"],
-    #             "MaxTokens": few_shot_config["MaxTokens"],
-    #             "PromptIdx": few_shot_config["PromptIdx"],
-    #         },
-    #     )
-    problem, train_df, test_df, heldout_df = PrepareFewShotDataset(
-        few_shot_config["dataset"], few_shot_config["TrainItem"]
+    wandb.init()
+    if few_shot_config["use_sweep"]:
+        print(few_shot_config["NumShots"])
+        few_shot_config["NumShots"] = wandb.config.NumShots
+        few_shot_config["Temperature"] = wandb.config.Temperature
+        few_shot_config["TopP"] = wandb.config.TopP
+        few_shot_config["ModelName"] = wandb.config.scorer_base_model
+        few_shot_config["TokenizerName"] = wandb.config.scorer_base_model
+        print(few_shot_config["NumShots"])
+
+    problem, train_df, dev_df, test_df = PrepareFewShotDataset(
+        few_shot_config["dataset"],
+        few_shot_config["TrainItem"],
+        few_shot_config["test_set"],
+        few_shot_config["metric"],
     )
     # sample n exemplars to include in all prompts, use seed for reproducability
     if "asst" not in few_shot_config["ModelName"]:
@@ -126,12 +128,12 @@ def LLMTrial():
             replace=False,
         )
         train_shots = list(train_shots["example"])
-    test_df["pred_label"] = None
+    dev_df["pred_label"] = None
 
     if few_shot_config["use_test_set"]:
-        heldout_df["pred_label"] = None
+        test_df["pred_label"] = None
 
-    np.random.seed(  # TODO: add a few_shot_config file for all params
+    np.random.seed(
         few_shot_config["random_seed"]
     )  # sets a randomization seed for reproducibility
     transformers.set_seed(few_shot_config["random_seed"])
@@ -153,7 +155,7 @@ def LLMTrial():
     try:
         if few_shot_config["ModelName"] == "claude-3":
             model = ChatAnthropic(
-                model_name="claude-3-sonnet-20240229",  # TODO: no hard code here
+                model_name="claude-3-haiku-20240307",  # TODO: no hard code here
                 max_tokens_to_sample=few_shot_config["MaxTokens"],
                 temperature=few_shot_config["Temperature"],
                 anthropic_api_key=ANTHROPIC_KEY,
@@ -184,6 +186,7 @@ def LLMTrial():
         else:
             bnb_config = bnb_config = BitsAndBytesConfig(
                 bnb_4bit_compute_dtype=torch.float16,
+                # load_in_4bit=True,
             )
             model_kwargs = {
                 "top_p": few_shot_config["TopP"],
@@ -197,15 +200,27 @@ def LLMTrial():
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
 
-            model = AutoModelForCausalLM.from_pretrained(
-                few_shot_config["ModelName"],
-                quantization_config=bnb_config,
-                **model_kwargs,
-            )
+            if "gemma" in few_shot_config["ModelName"]:
+                model = AutoModelForCausalLM.from_pretrained(
+                    few_shot_config["ModelName"],
+                    do_sample=True,
+                    torch_dtype=torch.bfloat16,
+                    # revision="float16",
+                    **model_kwargs,
+                )
+            else:
+                model = AutoModelForCausalLM.from_pretrained(
+                    few_shot_config["ModelName"],
+                    do_sample=True,
+                    quantization_config=bnb_config,
+                    **model_kwargs,
+                )
             if model.config.pad_token_id is None:
                 model.config.pad_token_id = model.config.eos_token_id
-            
-            pipeline = hf_pipeline("text-generation", model=model, tokenizer=tokenizer, max_new_tokens=5)
+
+            pipeline = hf_pipeline(
+                "text-generation", model=model, tokenizer=tokenizer, max_new_tokens=2
+            )
             model = HuggingFacePipeline(pipeline=pipeline)
 
     except Exception as e:
@@ -216,52 +231,20 @@ def LLMTrial():
 
     # main inference loop
     if few_shot_config["use_test_set"]:  # TODO: update
-        for index, row in tqdm(heldout_df.iterrows(), total=len(heldout_df)):
-            # invoke the llm to predict the val sample
-            if "asst" in few_shot_config["ModelName"]:
-                thread = client.beta.threads.create()
-                final_prompt = prompt.format(**{
-                        "exemplar": row["Solutions"],
-                }).replace("System:","").replace("Human:","") + " Originality:"
-
-                message = client.beta.threads.messages.create(
-                    thread_id=thread.id,
-                    role="user",
-                    content=final_prompt,
-                )
-                run = client.beta.threads.runs.create_and_poll(
-                    thread_id=thread.id,
-                    assistant_id=model.id,
-                )
-                result = client.beta.threads.messages.list(
-                    thread_id=thread.id
-                ).data[0].content[0].text.value
-            else:
-                completion_chain = prompt | model | StrOutputParser()
-                result = completion_chain.invoke(
-                    {
-                        "examples": "\n###\n".join(train_shots),
-                        "exemplar": row["Solutions"] + " Label: ",
-                        "heldout_problem": row["ProblemFull"],
-                        "train_problem": problem
-                    }
-                )
-            try:
-                result = int(result)
-            except Exception:
-                if result[-1].isdigit():
-                    result = int(result[-1])
-                else:
-                    result = choice([0, 1, 2, 3])
-            heldout_df.at[index, "pred_label"] = result
-    else:
         for index, row in tqdm(test_df.iterrows(), total=len(test_df)):
             # invoke the llm to predict the val sample
             if "asst" in few_shot_config["ModelName"]:
                 thread = client.beta.threads.create()
-                final_prompt = prompt.format(**{
-                        "exemplar": row["Solutions"],
-                }).replace("System:","").replace("Human:","") + " Originality:"
+                final_prompt = (
+                    prompt.format(
+                        **{
+                            "exemplar": row["Solutions"],
+                        }
+                    )
+                    .replace("System:", "")
+                    .replace("Human:", "")
+                    + " Originality:"
+                )
 
                 message = client.beta.threads.messages.create(
                     thread_id=thread.id,
@@ -272,18 +255,32 @@ def LLMTrial():
                     thread_id=thread.id,
                     assistant_id=model.id,
                 )
-                result = client.beta.threads.messages.list(
-                    thread_id=thread.id
-                ).data[0].content[0].text.value
+                result = (
+                    client.beta.threads.messages.list(thread_id=thread.id)
+                    .data[0]
+                    .content[0]
+                    .text.value
+                )
             else:
                 completion_chain = prompt | model | StrOutputParser()
-                result = completion_chain.invoke(
-                    {
-                        "examples": "\n###\n".join(train_shots),
-                        "problem": problem,
-                        "exemplar": row["Solutions"] + " Label: ",
-                    }
-                )
+                if few_shot_config["test_set"] == "heldout":
+                    result = completion_chain.invoke(
+                        {
+                            "examples": "\n###\n".join(train_shots),
+                            "exemplar": row["Solutions"] + " Label: ",
+                            "heldout_problem": row["ProblemFull"],
+                            "train_problem": problem,
+                        }
+                    )
+                else:
+                    result = completion_chain.invoke(
+                        {
+                            "examples": "\n###\n".join(train_shots),
+                            "problem": problem,
+                            "exemplar": row["Solutions"] + " Label:",
+                        }
+                    )
+
             try:
                 result = int(result)
             except Exception:
@@ -292,28 +289,68 @@ def LLMTrial():
                 else:
                     result = choice([0, 1, 2, 3])
             test_df.at[index, "pred_label"] = result
+    else:
+        for index, row in tqdm(dev_df.iterrows(), total=len(dev_df)):
+            # invoke the llm to predict the val sample
+            if "asst" in few_shot_config["ModelName"]:
+                thread = client.beta.threads.create()
+                final_prompt = (
+                    prompt.format(
+                        **{
+                            "exemplar": row["Solutions"],
+                        }
+                    )
+                    .replace("System:", "")
+                    .replace("Human:", "")
+                    + " Originality:"
+                )
+
+                message = client.beta.threads.messages.create(
+                    thread_id=thread.id,
+                    role="user",
+                    content=final_prompt,
+                )
+                run = client.beta.threads.runs.create_and_poll(
+                    thread_id=thread.id,
+                    assistant_id=model.id,
+                )
+                result = (
+                    client.beta.threads.messages.list(thread_id=thread.id)
+                    .data[0]
+                    .content[0]
+                    .text.value
+                )
+            else:
+                completion_chain = prompt | model | StrOutputParser()
+                result = completion_chain.invoke(
+                    {
+                        "examples": "\n###\n".join(train_shots),
+                        "problem": problem,
+                        "exemplar": row["Solutions"] + " Label:",
+                    }
+                )
+            try:
+                result = int(result)
+            except Exception:
+                if result[-1].isdigit():
+                    result = int(result[-1])
+                else:
+                    result = choice([0, 1, 2, 3])
+            dev_df.at[index, "pred_label"] = result
 
     if few_shot_config["use_test_set"]:
-        preds = list(heldout_df["pred_label"])
-        labels = list(heldout_df["label"])
-    else:
         preds = list(test_df["pred_label"])
         labels = list(test_df["label"])
+    else:
+        preds = list(dev_df["pred_label"])
+        labels = list(dev_df["label"])
 
     metrics = compute_metrics(preds, labels)
     print(metrics)
-    test_df.to_csv(join(few_shot_config["OutputFile"], "test.csv"), index=False)
+    wandb.log(metrics)
+    # test_df.to_csv(join(few_shot_config["OutputFile"], "test.csv"), index=False)
     # wandb.log(metrics)
 
 
 if __name__ == "__main__":
-    # if few_shot_config["use_sweep"]:
-    #     run = wandb.init(project="LLM Invalid Response Detection")
-    #     few_shot_config["NumShots"] = wandb.config.NumShots
-    #     few_shot_config["random_seed"] = wandb.config.random_seed
-    #     few_shot_config["topP"] = wandb.config.TopP
-    #     few_shot_config["PromptIdx"] = wandb.config.PromptIdx
-    #     print(few_shot_config["NumShots"])
-    #     LLMTrial()
-    # else:
     LLMTrial()
