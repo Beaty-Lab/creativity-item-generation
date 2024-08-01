@@ -32,7 +32,7 @@ from SelectItemGenShots import SelectItemGenShots
 from optimize_item_gen_prompt import GenerateCPSResponses 
 # RLPS_RoBERTa
 from config import config
-from key import OPENAI_KEY, GEMINI_KEY, ANTHROPIC_KEY
+from key import OPENAI_API_KEY, GEMINI_KEY, ANTHROPIC_API_KEY
 
 # OpenAI
 from langchain.chat_models import ChatOpenAI
@@ -342,10 +342,15 @@ def RunExperiment(config: dict):
     transformers.set_seed(config["random_seed"])
     # save the config file
     config_path = Path(config["itemGenOutputFile"]).parent.absolute()
-    with open(join(config_path, "config.json"), "w+") as cf:
-        json.dump(config, cf)
+    try:
+        with open(join(config_path, "config.json"), "w+") as cf:
+            json.dump(config, cf)
+    except FileNotFoundError as e:
+        Path(config_path).mkdir(parents=True, exist_ok=True)
+        with open(join(config_path, "config.json"), "w+") as cf:
+            json.dump(config, cf)
 
-    with open(config["logFile"], "w+") as log:
+    with open(join(config_path, config["logFile"]), "w+") as log:
         log.writelines("Starting Trial...\n")
 
     item_gen_llm, item_eval_llm, item_response_llm = _init_models(config)
@@ -357,7 +362,7 @@ def RunExperiment(config: dict):
     task = init_task(config)
 
     for i in range(config["numIter"]):
-        with open(config["logFile"], "a") as log:
+        with open(join(config_path, config["logFile"]), "a") as log:
             print(f"Starting iteration {i} of experiment")
             print("Generating items")
             log.writelines(f"Starting iteration {i} of experiment\n")
@@ -439,7 +444,7 @@ def RunExperiment(config: dict):
                 config["itemEvalTopP"],
             )
 
-        with open(config["logFile"], "a") as log:
+        with open(join(config_path, config["logFile"]), "a") as log:
             print("Generating Item Responses")
             log.writelines("Generating Item Responses\n")
         # generate item responses
