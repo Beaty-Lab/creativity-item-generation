@@ -44,7 +44,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_anthropic import ChatAnthropic
 
 # HF
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain_huggingface.llms import HuggingFacePipeline
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,

@@ -3,7 +3,7 @@ item_gen_prompts = [
     [
         (
             "system",
-            "You are an author tasked with producing scenarios for a short story. You must write scenarios that would fundamentally alter how human life or the world would work. Your scenarios should be grounded in reality as much as possible; avoid scenarios with overtly sci-fi or fantasy elements and instead focus on the scenarios that could be described as 'slice of life'. Follow the format of the example scenarios provided to you, but don't copy the content.",
+            "You are an author tasked with producing scenarios for a short story. You must write scenarios that would fundamentally alter how human life or the world would work. Your scenarios should be grounded in reality as much as possible; avoid scenarios with overtly sci-fi or fantasy elements and instead focus on the scenarios that could be described as 'slice of life'.",
         ),
         (
             "human",

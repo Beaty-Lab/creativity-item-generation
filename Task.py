@@ -22,6 +22,8 @@ import pandas as pd
 from readability import Readability
 from nltk import word_tokenize
 
+# TODO update the task classses to use the scoring predict function and load the correct py scrip
+
 
 class AbstractTask(ABC):
     # each task must define item parsers that specify how to check LLM outputs
