@@ -3,6 +3,8 @@ import numpy as np
 import re
 import pandas as pd
 from config import config
+from os.path import join
+from pathlib import Path
 
 
 from langchain.prompts.chat import _convert_to_message
@@ -105,6 +107,7 @@ def create_scenarios(
     task_parser=None,
 ):
     # when true, will use add new items to an existing file
+    config_path = Path(config["itemGenOutputFile"]).parent.absolute()
     if input_file != None and round >= 1:
         assert item_shots != None
 
@@ -257,7 +260,6 @@ def create_scenarios(
                 orient="records",
             )
         elif wordlist_file == None:
-            pass
             # TODO: path for consequences like tasks that don't
             # have a set of constriants for the initial generation
             # in this case, the same prompt is just repeated x times to build the item pool
@@ -304,7 +306,7 @@ def create_scenarios(
                 )
                 generated_items = pd.concat((generated_items, new_scenario))
 
-            with open(config["logFile"], "a") as log:
+            with open(join(config_path, config["logFile"]), "a") as log:
                 print(f"Item gen finished, total items {len(generated_items)}")
                 log.writelines(
                     f"Item gen finished, total items {len(generated_items)}\n"
@@ -329,3 +331,4 @@ def create_scenarios(
             )
     else:
         print("Unsupported combination of arguments!")
+        exit(-1)

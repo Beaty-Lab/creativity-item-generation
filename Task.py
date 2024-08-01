@@ -335,12 +335,12 @@ class Consequences(AbstractTask):
     class CreativityScenarioResponseParser(BaseOutputParser):
         @staticmethod
         def parse(text: str) -> str:
-            forbidden_strings = [
-                "causing",
-                "leads to",
-                "resulting in",
-                "revolutionizes",
-            ]
+            # forbidden_strings = [
+            #     "causing",
+            #     "leads to",
+            #     "resulting in",
+            #     "revolutionizes",
+            # ]
             try:
                 if "Consequences:" in text:
                     text = text.split("Consequences:")[1]
@@ -351,10 +351,10 @@ class Consequences(AbstractTask):
                     text = text.content.split("Consequences:")[1]
                 text = text.strip("\n").strip(" ")
 
-            for f in forbidden_strings:
-                if f in text:
-                    print("Scenario contains forbidden string.")
-                    raise OutputParserException("Scenario contains forbidden string.")
+            # for f in forbidden_strings:
+            #     if f in text:
+            #         print("Scenario contains forbidden string.")
+            #         raise OutputParserException("Scenario contains forbidden string.")
             # Remove intervening newlines
             text = re.sub("\n", "", text)
             text = re.sub("\t", "", text)
@@ -364,8 +364,23 @@ class Consequences(AbstractTask):
     class CreativityScenarioItemParser(BaseOutputParser):
         @staticmethod
         def parse(text: str) -> str:
-            # TODO: implement
-            text = text.split("Scenario:")[1]
+            forbidden_strings = [
+                "your",
+                "this scenario would",
+                "you respond",
+                "human:",
+                "this is a great scenario",
+                "this is a bad scenario",
+                "the author"
+            ]
+
+            text = text.split("Scenario:")[1].split("###")[0]
+            for f in forbidden_strings:
+                if f in text.lower():
+                    print("Scenario contains forbidden string.")
+                    raise OutputParserException("Scenario contains forbidden string.")
+            if len(re.findall(r"([0-9]\.)", text)) > 0:
+                text = re.split(r"([0-9]\.)", text)[::2][1]
 
             # Remove intervening newlines
             text = re.sub("\n", "", text)
