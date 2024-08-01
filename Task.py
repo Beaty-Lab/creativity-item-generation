@@ -51,7 +51,7 @@ class CPS(AbstractTask):
     # add custom modules under the class def
     roberta_scorer = imp.load_source(
         "RLPS_RoBERTa",
-        "/home/aml7990/Code/creativity-item-generation/scorers/RLPS_RoBERTa.py",
+        "/home/aml7990/Code/creativity-item-generation/scorers/CPS/CPSFinetuneTLM.py",
     )
 
     def __init__(self) -> None:
@@ -325,7 +325,7 @@ class CPS(AbstractTask):
 class Consequences(AbstractTask):
     oscai_scorer = imp.load_source(
         "oscai_scoring",
-        "/home/aml7990/Code/creativity-item-generation/scorers/oscai_scoring.py",
+        "/home/aml7990/Code/creativity-item-generation/scorers/consequences/oscai_scoring.py",
     )
 
     def __init__(self) -> None:
