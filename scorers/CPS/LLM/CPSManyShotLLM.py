@@ -34,7 +34,7 @@ from transformers import pipeline as hf_pipeline
 from langchain.prompts.chat import ChatPromptTemplate
 from langchain.prompts import PromptTemplate
 
-from prompts import prompts, assistant_prompts
+from prompts import prompts
 from Config import few_shot_config
 from key import ANTHROPIC_KEY, OPENAI_KEY
 from random import choice
@@ -44,13 +44,6 @@ INPUT_COL = "ProblemFull"
 
 
 def compute_metrics(predictions, references):
-    # predictions = [int(p) for p in predictions]
-    # new_preds = []
-    # for index, value in enumerate(predictions):
-    #     if type(value) == int:
-    #         new_preds.append(value)
-    #     else:
-    #         references.pop(index)
     accuracy = evaluate.load("accuracy")
     accuracy = accuracy.compute(predictions=predictions, references=references)[
         "accuracy"
@@ -65,17 +58,38 @@ def PrepareFewShotDataset(df: str, item: str, test_set: str, metric: str) -> Lis
     d.dropna(inplace=True)
     d = d.sample(frac=1.0)
     # convert labels using the quartiles approach
-    describe = d[metric].describe()
-    lower_quartile = describe["25%"]
-    middle_quartile = describe["50%"]
-    upper_quartile = describe["75%"]
-    d["label"] = d[metric].apply(
-        lambda x: (
-            0
-            if x < lower_quartile
-            else 1 if x < middle_quartile else 2 if x < upper_quartile else 3
+    # or quintiles, depending on the arg
+    if few_shot_config["use_quintiles"]:
+        describe = d[metric].quantile([0.2, 0.4, 0.6, 0.8])
+        first_quintile = describe.loc[0.2]
+        second_quintile = describe.loc[0.4]
+        third_quintile = describe.loc[0.6]
+        fourth_quintile = describe.loc[0.8]
+        d["label"] = d[metric].apply(
+            lambda x: (
+                0
+                if x < first_quintile
+                else 1
+                if x < second_quintile
+                else 2
+                if x < third_quintile
+                else 3
+                if x < fourth_quintile
+                else 4
+            )
         )
-    )
+    else:
+        describe = d[metric].describe()
+        lower_quartile = describe["25%"]
+        middle_quartile = describe["50%"]
+        upper_quartile = describe["75%"]
+        d["label"] = d[metric].apply(
+            lambda x: (
+                0
+                if x < lower_quartile
+                else 1 if x < middle_quartile else 2 if x < upper_quartile else 3
+            )
+        )
 
     d["text"] = "Problem: " + d[INPUT_COL] + "\nResponse: " + d[RESPONSE_COL] + "\n"
     problem = d[d["ProblemID"] == item].iloc[0]["ProblemFull"]
