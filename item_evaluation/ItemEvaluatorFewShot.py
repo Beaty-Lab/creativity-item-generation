@@ -1,20 +1,16 @@
 import pandas as pd
 import numpy as np
 import torch
-
-import evaluate
-import json
 import transformers
 from scipy.stats import spearmanr
-from os.path import join
-from pathlib import Path
-from typing import List
+from typing import List, Dict
 from langchain_huggingface import HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSeq2SeqLM
 from transformers import BitsAndBytesConfig
 from tqdm import tqdm
 from langchain.schema import StrOutputParser
-from openai import OpenAI
+from sklearn.model_selection import StratifiedKFold
+from copy import deepcopy
 
 
 # Claude
@@ -22,7 +18,6 @@ from langchain_anthropic import ChatAnthropic
 from langchain_community.chat_models import ChatOpenAI
 from transformers import pipeline as hf_pipeline
 from langchain.prompts.chat import ChatPromptTemplate
-from langchain.prompts import PromptTemplate
 from datasets import load_from_disk
 
 from prompts import prompts
@@ -36,7 +31,8 @@ def compute_metrics(predictions, references):
     correlation = spearmanr(predictions, references)[0]
     return {"Spearman Correlation": correlation}
 
-# def to_tokens_and_logprobs(model, tokenizer, input_texts):        
+
+# def to_tokens_and_logprobs(model, tokenizer, input_texts):
 #     input_ids = tokenizer(input_texts, padding=True, return_tensors="pt").input_ids.cuda()
 #     outputs = model(input_ids)
 #     probs = torch.log_softmax(outputs.logits, dim=-1).detach()
@@ -47,7 +43,7 @@ def compute_metrics(predictions, references):
 #     gen_probs = torch.gather(probs, 2, input_ids[:, :, None]).squeeze(-1)
 
 #     batch = []
-    
+
 #     for input_sentence, input_probs in zip(input_ids, gen_probs):
 #         text_sequence = []
 #         for token, p in zip(input_sentence, input_probs):
@@ -62,19 +58,23 @@ def PrepareFewShotDataset(df: str, label: str) -> List:
     d = pd.read_csv(df)
     d = d.sample(frac=1.0)
     if label == "complexity_aggregrate":
-        d["text"] = "Item: " + d["creative_scenario_round_4"] + " Complexity: " + d["complexity_aggregrate"].astype(str)
+        d["text"] = (
+            "Item: "
+            + d["creative_scenario_round_4"]
+            + " Complexity: "
+            + d["complexity_aggregrate"].astype(str)
+        )
     elif label == "difficulty_aggregrate":
-        d["text"] = "Item: " + d["creative_scenario_round_4"] + " Difficulty: " + d["difficulty_aggregrate"].astype(str)
+        d["text"] = (
+            "Item: "
+            + d["creative_scenario_round_4"]
+            + " Difficulty: "
+            + d["difficulty_aggregrate"].astype(str)
+        )
     return d
 
 
-def LLMTrial():
-    train_df = PrepareFewShotDataset(
-        few_shot_config["TrainSet"], few_shot_config["label"]
-    )
-    test_df = PrepareFewShotDataset(
-        few_shot_config["TestSet"], few_shot_config["label"]
-    )
+def LLMTrial(train_df: pd.DataFrame, test_df: pd.DataFrame, model) -> Dict:
     # sample n exemplars to include in all prompts, use seed for reproducability
     # can't do stratified sampling due to having only one 5 in the train set
     train_shots = train_df.sample(
@@ -90,7 +90,6 @@ def LLMTrial():
     )
     train_shots = list(train_shots["text"])
 
-   
     test_df["pred_label"] = None
 
     np.random.seed(
@@ -99,11 +98,63 @@ def LLMTrial():
     transformers.set_seed(few_shot_config["random_seed"])
 
     prompt = ChatPromptTemplate.from_messages(prompts[few_shot_config["PromptIdx"]])
+    # main inference loop
+    if few_shot_config["use_human_test_set"]:
+        # score quality of human written items
+        # TODO: finish
+        pass
+    else:
+        # use the AI item test set
+        for index, row in tqdm(test_df.iterrows(), total=len(test_df)):
+            # invoke the llm to predict the val sample
+            if few_shot_config["label"] == "complexity_aggregrate":
+                label = "Complexity"
+            else:
+                label = "Difficulty"
+            completion_chain = prompt | model | StrOutputParser()
+            try:
 
+                result = completion_chain.invoke(
+                    {
+                        "examples": "\n###\n".join(train_shots),
+                        "exemplar": "Item: "
+                        + row["creative_scenario_round_4"]
+                        + f" {label}: ",
+                    }
+                )
+            except Exception as e:
+                # most likely antropic error, wait a few seconds and try 1 more time
+                time.sleep(5)
+                result = completion_chain.invoke(
+                    {
+                        "examples": "\n###\n".join(train_shots),
+                        "exemplar": "Item: "
+                        + row["creative_scenario_round_4"]
+                        + f" {label}: ",
+                    }
+                )
+            try:
+                result = int(result)
+            except Exception:
+                if result[-1].isdigit():
+                    result = int(result[-1])
+                else:
+                    result = choice([0, 1, 2, 3])
+            test_df.at[index, "pred_label"] = result
+
+    preds = list(test_df["pred_label"])
+    labels = list(test_df[few_shot_config["label"]])
+
+    metrics = compute_metrics(preds, labels)
+    print(metrics)
+
+
+if __name__ == "__main__":
+    # load the LLM
     try:
         if few_shot_config["ModelName"] == "claude-3":
             model = ChatAnthropic(
-                model_name="claude-3-haiku-20240307",  # TODO: no hard code here
+                model_name="claude-3-5-sonnet-20240620",  # TODO: no hard code here
                 max_tokens_to_sample=few_shot_config["MaxTokens"],
                 temperature=few_shot_config["Temperature"],
                 anthropic_api_key=ANTHROPIC_KEY,
@@ -162,93 +213,36 @@ def LLMTrial():
             pipeline = hf_pipeline(
                 "text-generation", model=model, tokenizer=tokenizer, max_new_tokens=2
             )
-            
+
             model = HuggingFacePipeline(pipeline=pipeline)
 
     except Exception as e:
         print(e)
         exit(-1)
 
-    # main inference loop
-    if few_shot_config["use_human_test_set"]:
-        # score quality of human written items
-        # TODO: finish
-        pass
-        # for index, row in tqdm(test_df.iterrows(), total=len(test_df)):
-        #     # invoke the llm to predict the val sample
-        #     completion_chain = prompt | model | StrOutputParser()
-            # try:
-            #     result = completion_chain.invoke(
-            #         {
-            #             "examples": "\n###\n".join(train_shots),
-            #             "exemplar": row["Response"] + " Label: ",
-            #             "heldout_problem": row["ProblemFull"],
-            #             "train_problem": train_df.iloc[0]["ProblemFull"], # TODO: needs to change when theres more than one train item
-            #         }
-            #     )
-            # except Exception as e:
-            #     # most likely antropic error, wait a few seconds and try 1 more time
-            #     time.sleep(5)
-            #     result = completion_chain.invoke(
-            #         {
-            #             "examples": "\n###\n".join(train_shots),
-            #             "exemplar": row["Response"] + " Label: ",
-            #             "heldout_problem": row["ProblemFull"],
-            #             "train_problem": train_df.iloc[0]["ProblemFull"], # TODO: needs to change when theres more than one train item
-            #         }
-            #     )
-
-            # try:
-            #     result = int(result)
-            # except Exception:
-            #     if result[-1].isdigit():
-            #         result = int(result[-1])
-            #     else:
-            #         result = choice([0, 1, 2, 3])
-            # test_df.at[index, "pred_label"] = result
+    if few_shot_config["use_cross_validation"]:
+        train_df = PrepareFewShotDataset(
+            few_shot_config["TrainSet"], few_shot_config["label"]
+        )
+        test_df = PrepareFewShotDataset(
+            few_shot_config["TestSet"], few_shot_config["label"]
+        )
+        combined_df = pd.concat([train_df, test_df])
+        y = combined_df[few_shot_config["label"]]
+        X = combined_df.drop(columns=few_shot_config["label"])
+        skf = StratifiedKFold(
+            n_splits=5, shuffle=True, random_state=few_shot_config["random_seed"]
+        )
+        for i, (train_index, test_index) in enumerate(skf.split(X, y)):
+            train_df = deepcopy(combined_df.iloc[train_index])
+            test_df = deepcopy(combined_df.iloc[test_index])
+            print(f"Fold {i}:")
+            LLMTrial(train_df, test_df, model)
     else:
-        # use the AI item test set
-        for index, row in tqdm(test_df.iterrows(), total=len(test_df)):
-            # invoke the llm to predict the val sample
-            if few_shot_config["label"] == "complexity_aggregrate":
-                label = "Complexity"
-            else:
-                label = "Difficulty"
-            completion_chain = prompt | model | StrOutputParser()
-            try:
-                
-                result = completion_chain.invoke(
-                    {
-                        "examples": "\n###\n".join(train_shots),
-                        "exemplar": "Item: " + row["creative_scenario_round_4"] + f" {label}: ",
-                    }
-                )
-            except Exception as e:
-                # most likely antropic error, wait a few seconds and try 1 more time
-                time.sleep(5)
-                result = completion_chain.invoke(
-                    {
-                        "examples": "\n###\n".join(train_shots),
-                        "exemplar": "Item: " + row["creative_scenario_round_4"] + f" {label}: ",
-                    }
-                )
-            try:
-                result = int(result)
-            except Exception:
-                if result[-1].isdigit():
-                    result = int(result[-1])
-                else:
-                    result = choice([0, 1, 2, 3])
-            test_df.at[index, "pred_label"] = result
-
-
-    if few_shot_config["use_test_set"]:
-        preds = list(test_df["pred_label"])
-        labels = list(test_df["label"])
-
-    metrics = compute_metrics(preds, labels)
-    print(metrics)
-
-
-if __name__ == "__main__":
-    LLMTrial()
+        train_df = PrepareFewShotDataset(
+            few_shot_config["TrainSet"], few_shot_config["label"]
+        )
+        test_df = PrepareFewShotDataset(
+            few_shot_config["TestSet"], few_shot_config["label"]
+        )
+        LLMTrial(train_df, test_df, model)
