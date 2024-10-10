@@ -147,6 +147,7 @@ def LLMTrial(train_df: pd.DataFrame, test_df: pd.DataFrame, model) -> Dict:
 
     metrics = compute_metrics(preds, labels)
     print(metrics)
+    return test_df
 
 
 if __name__ == "__main__":
@@ -236,8 +237,15 @@ if __name__ == "__main__":
         for i, (train_index, test_index) in enumerate(skf.split(X, y)):
             train_df = deepcopy(combined_df.iloc[train_index])
             test_df = deepcopy(combined_df.iloc[test_index])
+            model_name = few_shot_config["ModelName"]
+            topp = few_shot_config["TopP"]
+            temperature = few_shot_config["Temperature"]
+            label = few_shot_config["label"]
+            seed = few_shot_config["random_seed"]
             print(f"Fold {i}:")
-            LLMTrial(train_df, test_df, model)
+            test_df = LLMTrial(train_df, test_df, model)
+            test_df.to_csv(f"{model_name}_{label}_{topp}_{temperature}_{seed}_fold{i}.csv")
+
     else:
         train_df = PrepareFewShotDataset(
             few_shot_config["TrainSet"], few_shot_config["label"]
