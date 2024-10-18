@@ -55,7 +55,7 @@ from Task import init_task
 from Prompts import load_prompts
 
 # c-based transformers can be difficult to install correctly
-# no point importing them if they won't be used
+# no point importing them if they won't be useddoEval
 if config["useCTransformers"]:
     from ctransformers import AutoModelForCausalLM as CAutoModel
     from ctransformers import AutoTokenizer as CTokenizer
@@ -235,9 +235,10 @@ def _init_models(config: dict) -> Tuple:
     else:
         item_eval_llm = None
     try:
-        if config["itemGenModelName"] == config["itemResponseGenModelName"]:
-            item_response_llm = item_gen_llm
-        elif (
+        # TODO: this cause item response gen parameters to be ignored when the same model is used for both!
+        # if config["itemGenModelName"] == config["itemResponseGenModelName"]:
+        #     item_response_llm = item_gen_llm
+        if (
             config["itemResponseGenModelName"] == "gpt-4"
             or config["itemResponseGenModelName"] == "gpt-3.5-turbo"
         ):
@@ -336,6 +337,15 @@ Parameters:
 
 # TODO The `load_in_4bit` and `load_in_8bit` arguments are deprecated and will be removed in the future versions. Please, pass a `BitsAndBytesConfig` object in `quantization_config` argument instead.
 def RunExperiment(config: dict):
+    """
+    A function to run an AIG trial. Only LLama and OpenAI models should be used.
+    Parameters:
+        num_iter: int, how many iterations of item gen to run
+        useItemEvalModel: bool, whether to use GPT-4 item evaluation
+        itemResponseEvalMetric: str, the metric for item response evaluation
+        numItemsPerList: int, the number of items per wordlist to generate
+    """
+    
     np.random.seed(
         config["random_seed"]
     )  # sets a randomization seed for reproducibility

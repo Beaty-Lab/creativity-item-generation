@@ -310,6 +310,15 @@ class CPS(AbstractTask):
     # run scoring for the task
     # to ensure correct behavior, round must always be passed
     def RunScorers(self, i: int) -> None:
+        """
+        Run the scoring process for the task.
+
+        Args:
+            i (int): The round number.
+
+        Returns:
+            None
+        """
         self.roberta_scorer.predict_with_model(
             config["itemResponseOriginalityModelDir"],
             config["itemResponseGenOutputFile"],
@@ -323,9 +332,9 @@ class CPS(AbstractTask):
 
 
 class Consequences(AbstractTask):
-    oscai_scorer = imp.load_source(
-        "oscai_scoring",
-        "/home/aml7990/Code/creativity-item-generation/scorers/consequences/oscai_scoring.py",
+    scorer = imp.load_source(
+        "predict_with_model",
+        "/home/aml7990/Code/creativity-item-generation/scorers/consequences/flan-t5/ConsequencesFinetuneTLM.py",
     )
 
     def __init__(self) -> None:
@@ -337,6 +346,7 @@ class Consequences(AbstractTask):
         def parse(text: str) -> str:
             forbidden_strings = [
                 "###",
+                "*"
             ]
             try:
                 if "Consequences:" in text:
@@ -355,6 +365,9 @@ class Consequences(AbstractTask):
             # Remove intervening newlines
             text = re.sub("\n", "", text)
             text = re.sub("\t", "", text)
+            if not text.endswith("."):
+                print("Response consequences should end with a period.")
+                raise OutputParserException("Response consequences should end with a period.")
 
             return text
 
@@ -368,7 +381,8 @@ class Consequences(AbstractTask):
                 "human:",
                 "this is a great scenario",
                 "this is a bad scenario",
-                "the author"
+                "the author",
+                "Please describe the scenario in 12 words at most."
             ]
 
             text = text.split("Scenario:")[-1].split("###")[0]
@@ -542,8 +556,13 @@ class Consequences(AbstractTask):
     # to ensure correct behavior, round must always be passed
     # TODO: implement sentiment analysis scorer
     def RunScorers(self, i: int) -> None:
-        self.oscai_scorer.predict_with_model(
+        self.scorer.predict_with_model(
+            config["itemResponseOriginalityModelDir"],
             config["itemResponseGenOutputFile"],
+            config["shotSelectionMetric"],
+            config[
+                "itemResponseGenOutputFile"
+            ],  # we need to chop off most columns from the first instance, so send another copy to save to
             i,  # round
         )
 
