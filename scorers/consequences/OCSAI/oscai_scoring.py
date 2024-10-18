@@ -1,11 +1,14 @@
 import requests
 import pandas as pd
 import json
-from oscai_key import oscai_key
+import imp
+# from oscai_key import oscai_key
+# from OscaiKey import oscai_key
+oscai_key = imp.load_source("oscai_key", "/home/aml7990/Code/creativity-item-generation/scorers/consequences/OCSAI/OscaiKey.py")
 
 headers = {
     "accept": "application/json",
-    "X-API-KEY": oscai_key,
+    "X-API-KEY": oscai_key.oscai_key,
     "Content-Type": "application/x-www-form-urlencoded",
 }
 
