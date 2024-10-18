@@ -6,7 +6,7 @@ config = {
     # must be one of CPS or consequences
     "task": TASK,
     # numeric params
-    "random_seed": 666,
+    "random_seed": 333,
     "numIter": 3,
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
@@ -23,13 +23,13 @@ config = {
     "itemGenPromptIdx": 0,
     "itemEvalPromptIdx": 0,
     "itemResponseGenPromptIdx": 0,
-    "itemGenMaxTokens": 300,
+    "itemGenMaxTokens": 70,
     "itemEvalMaxTokens": 2048,
-    "itemResponseGenMaxTokens": 50,  # will be the same as the max for item gen if using the same model
+    "itemResponseGenMaxTokens": 100,  # will be the same as the max for item gen if using the same model
     "numItemsPerList": 3,
-    "numItemGenerationAttempts": 3,
-    "itemGenNumShots": 0,
-    "numResponsesPerItem": 0,
+    "numItemGenerationAttempts": 4,
+    "itemGenNumShots": 3,
+    "numResponsesPerItem": 1,
     # shot selection params
     "EmbeddingModel": "all-mpnet-base-v2",
     # non-numeric params
@@ -37,28 +37,22 @@ config = {
     "shotSelectionSort": "max",
     "shotSelectionAggregate": "mean",
     "shotSelectionAlgorithm": "constraint satisfaction",
-    # scoring models dirs (ignored for consequences which uses OCS)
-    "itemResponseOriginalityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/originality_model_factor_score/",
-    "itemResponseQualityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/quality_model_factor_score/",
+    # scoring models dirs
+    "itemResponseOriginalityModelDir": "/home/aml7990/Code/creative-judgeLM/model_training/flan-t5-xl-multitask/flan-t5-xl-multitask-originality-scoring/",
+    "itemResponseQualityModelDir": "/home/aml7990/Code/creative-judgeLM/model_training/flan-t5-xl-multitask/flan-t5-xl-multitask-originality-scoring/",
     # model dirs and flags
-    "itemGenModelName": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-    "itemEvalModelName": "HuggingFaceTB/SmolLM-1.7B-Instruct",
-    "itemResponseGenModelName": "HuggingFaceTB/SmolLM-1.7B-Instruct",
+    "itemGenModelName": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+    "itemEvalModelName": "meta-llama/Llama-3.2-3B-Instruct",
+    "itemResponseGenModelName": "meta-llama/Llama-3.2-3B-Instruct",
     "useItemEvalModel": False,
     "useItemScoring": True,  # only set to false if you want to generate a bunch of items without prompt optimization
     "useItemScoringModelPeft": False,
     # dataset dirs
     "wordlistFile": None,  # "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
     # if not using a wordlist, must specify the below to dicate how many items to generate on the first pass
-    "NumSeedItems": 20,
+    "NumSeedItems": 5,
     # "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
     "demographicsFile": None,
-    ## CTransformers ##
-    "useCTransformers": False,
-    "CTransformersNumGPULayers": 50,
-    "CTransformersItemGenTokenizer": "meta-llama/Llama-2-7b-chat-hf",
-    "CTransformersItemEvalTokenizer": "meta-llama/Llama-2-7b-chat-hf",
-    "CTransformersItemResponseGenTokenizer": "meta-llama/Llama-2-7b-chat-hf",
     ## prompt config file ##
     "promptConfig": f"/home/aml7990/Code/creativity-item-generation/prompts/{TASK}_prompts.py",
     ## scorer training params ##
@@ -111,9 +105,7 @@ config["itemResponseGenOutputFile"] = (
     f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/{item_gen_model_name}_seed={config['random_seed']}_prompt={config['itemGenPromptIdx']}/item_responses"
 )
 config["itemEvalOutputFile"] = config["itemGenOutputFile"]
-config["logFile"] = (
-    f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/{item_gen_model_name}_seed={config['random_seed']}_prompt={config['itemGenPromptIdx']}/log.txt",
-)
+config["logFile"] = "log.txt"
 
 if config["scorerType"] == "LoRA":
     peft_config = LoraConfig(

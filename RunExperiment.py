@@ -54,12 +54,6 @@ from transformers import pipeline as hf_pipeline
 from Task import init_task
 from Prompts import load_prompts
 
-# c-based transformers can be difficult to install correctly
-# no point importing them if they won't be useddoEval
-if config["useCTransformers"]:
-    from ctransformers import AutoModelForCausalLM as CAutoModel
-    from ctransformers import AutoTokenizer as CTokenizer
-
 # load all LLMs
 def _init_models(config: dict) -> Tuple:
     try:
@@ -99,47 +93,31 @@ def _init_models(config: dict) -> Tuple:
                 anthropic_api_key=ANTHROPIC_KEY,
             )
         else:
-            if config["useCTransformers"]:
-                model_kwargs = {
-                    "top_p": config["itemGenTopP"],
-                    "temperature": config["itemGenTemperature"],
-                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-                }
-                tokenizer = AutoTokenizer.from_pretrained(
-                    config["CTransformersItemGenTokenizer"], **model_kwargs
-                )
-                model = CAutoModel.from_pretrained(
-                    config["itemGenModelName"],
-                    hf=True,
-                    gpu_layers=config["CTransformersNumGPULayers"],
-                    **model_kwargs,
-                )
-            else:
-                model_kwargs = {
-                    "top_p": config["itemGenTopP"],
-                    "temperature": config["itemGenTemperature"],
-                    "device_map": "auto",
-                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-                }
-                tokenizer = AutoTokenizer.from_pretrained(
-                    config["itemGenModelName"], **model_kwargs
-                )
-                model = AutoModelForCausalLM.from_pretrained(
-                    config["itemGenModelName"],
-                    load_in_4bit=True,
-                    # max_new_tokens=config["itemGenMaxTokens"],
-                    **model_kwargs,
-                )
-
-            pipeline = hf_pipeline(
-                task="text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                batch_size=1,
-                max_new_tokens=config["itemGenMaxTokens"],
-                model_kwargs=model_kwargs,
+            model_kwargs = {
+                "top_p": config["itemGenTopP"],
+                "temperature": config["itemGenTemperature"],
+                "device_map": "auto",
+                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+            }
+            tokenizer = AutoTokenizer.from_pretrained(
+                config["itemGenModelName"], **model_kwargs
             )
-            item_gen_llm = HuggingFacePipeline(pipeline=pipeline)
+            model = AutoModelForCausalLM.from_pretrained(
+                config["itemGenModelName"],
+                load_in_4bit=True,
+                # max_new_tokens=config["itemGenMaxTokens"],
+                **model_kwargs,
+            )
+
+        pipeline = hf_pipeline(
+            task="text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            batch_size=1,
+            max_new_tokens=config["itemGenMaxTokens"],
+            model_kwargs=model_kwargs,
+        )
+        item_gen_llm = HuggingFacePipeline(pipeline=pipeline)
 
     except Exception as e:
         with open(config["logFile"], "a") as log:
@@ -186,46 +164,30 @@ def _init_models(config: dict) -> Tuple:
                     anthropic_api_key=ANTHROPIC_KEY,
                 )
             else:
-                if config["useCTransformers"]:
-                    model_kwargs = {
-                        "top_p": config["itemEvalTopP"],
-                        "temperature": config["itemEvalTemperature"],
-                    }
-                    tokenizer = AutoTokenizer.from_pretrained(
-                        config["CTransformersitemEvalTokenizer"], **model_kwargs
-                    )
-                    model = CAutoModel.from_pretrained(
-                        config["itemEvalModelName"],
-                        hf=True,
-                        gpu_layers=config["CTransformersNumGPULayers"],
-                        max_new_tokens=config["itemEvalMaxTokens"],
-                        **model_kwargs,
-                    )
-                else:
-                    model_kwargs = {
-                        "top_p": config["itemEvalTopP"],
-                        "temperature": config["itemEvalTemperature"],
-                        "device_map": "auto",
-                        # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-                    }
-                    tokenizer = AutoTokenizer.from_pretrained(
-                        config["itemEvalModelName"], **model_kwargs
-                    )
-                    model = AutoModelForCausalLM.from_pretrained(
-                        config["itemEvalModelName"],
-                        load_in_4bit=True,
-                        **model_kwargs,
-                    )
-
-                pipeline = hf_pipeline(
-                    task="text-generation",
-                    model=model,
-                    tokenizer=tokenizer,
-                    batch_size=1,
-                    max_new_tokens=config["itemEvalMaxTokens"],
-                    model_kwargs=model_kwargs,
+                model_kwargs = {
+                    "top_p": config["itemEvalTopP"],
+                    "temperature": config["itemEvalTemperature"],
+                    "device_map": "auto",
+                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+                }
+                tokenizer = AutoTokenizer.from_pretrained(
+                    config["itemEvalModelName"], **model_kwargs
                 )
-                item_eval_llm = HuggingFacePipeline(pipeline=pipeline)
+                model = AutoModelForCausalLM.from_pretrained(
+                    config["itemEvalModelName"],
+                    load_in_4bit=True,
+                    **model_kwargs,
+                )
+
+            pipeline = hf_pipeline(
+                task="text-generation",
+                model=model,
+                tokenizer=tokenizer,
+                batch_size=1,
+                max_new_tokens=config["itemEvalMaxTokens"],
+                model_kwargs=model_kwargs,
+            )
+            item_eval_llm = HuggingFacePipeline(pipeline=pipeline)
 
         except Exception as e:
             with open(config["logFile"], "a") as log:
@@ -272,46 +234,30 @@ def _init_models(config: dict) -> Tuple:
                 anthropic_api_key=ANTHROPIC_KEY,
             )
         else:
-            if config["useCTransformers"]:
-                model_kwargs = {
-                    "top_p": config["itemResponseGenTopP"],
-                    "temperature": config["itemResponseGenTemperature"],
-                }
-                tokenizer = AutoTokenizer.from_pretrained(
-                    config["CTransformersItemResponseGenTokenizer"], **model_kwargs
-                )
-                model = CAutoModel.from_pretrained(
-                    config["itemResponseGenModelName"],
-                    hf=True,
-                    gpu_layers=config["CTransformersNumGPULayers"],
-                    max_new_tokens=config["itemResponseGenMaxTokens"],
-                    **model_kwargs,
-                )
-            else:
-                model_kwargs = {
-                    "top_p": config["itemResponseGenTopP"],
-                    "temperature": config["itemResponseGenTemperature"],
-                    "device_map": "auto",
-                    # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
-                }
-                tokenizer = AutoTokenizer.from_pretrained(
-                    config["itemResponseGenModelName"], **model_kwargs
-                )
-                model = AutoModelForCausalLM.from_pretrained(
-                    config["itemResponseGenModelName"],
-                    load_in_4bit=True,
-                    **model_kwargs,
-                )
-
-            pipeline = hf_pipeline(
-                task="text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                batch_size=1,
-                max_new_tokens=config["itemResponseGenMaxTokens"],
-                model_kwargs=model_kwargs,
+            model_kwargs = {
+                "top_p": config["itemResponseGenTopP"],
+                "temperature": config["itemResponseGenTemperature"],
+                "device_map": "auto",
+                # "torch_dtype": torch.bfloat16, # don't use with 8 bit mode
+            }
+            tokenizer = AutoTokenizer.from_pretrained(
+                config["itemResponseGenModelName"], **model_kwargs
             )
-            item_response_llm = HuggingFacePipeline(pipeline=pipeline)
+            model = AutoModelForCausalLM.from_pretrained(
+                config["itemResponseGenModelName"],
+                load_in_4bit=True,
+                **model_kwargs,
+            )
+
+        pipeline = hf_pipeline(
+            task="text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            batch_size=1,
+            max_new_tokens=config["itemResponseGenMaxTokens"],
+            model_kwargs=model_kwargs,
+        )
+        item_response_llm = HuggingFacePipeline(pipeline=pipeline)
     except Exception as e:
         with open(config["logFile"], "a") as log:
             print(e)
