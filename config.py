@@ -1,13 +1,13 @@
 import torch
 from peft import LoraConfig, TaskType, PromptEncoderConfig
 
-TASK = "consequences"
+TASK = "CPS"
 config = {
     # must be one of CPS or consequences
     "task": TASK,
     # numeric params
-    "random_seed": 333,
-    "numIter": 3,
+    "random_seed": 666,
+    "numIter": 5,
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
     "itemResponseGenFrequencyPenalty": 0.0,
@@ -23,34 +23,35 @@ config = {
     "itemGenPromptIdx": 0,
     "itemEvalPromptIdx": 0,
     "itemResponseGenPromptIdx": 0,
-    "itemGenMaxTokens": 70,
+    "itemGenMaxTokens": 500,
     "itemEvalMaxTokens": 2048,
     "itemResponseGenMaxTokens": 100,  # will be the same as the max for item gen if using the same model
     "numItemsPerList": 3,
     "numItemGenerationAttempts": 4,
     "itemGenNumShots": 3,
-    "numResponsesPerItem": 1,
+    "numResponsesPerItem": 30,
     # shot selection params
-    "EmbeddingModel": "all-mpnet-base-v2",
+    "EmbeddingModel": "all-MiniLM-L6-v2",
     # non-numeric params
     "shotSelectionMetric": "originality",
     "shotSelectionSort": "max",
     "shotSelectionAggregate": "mean",
     "shotSelectionAlgorithm": "constraint satisfaction",
-    # scoring models dirs
-    "itemResponseOriginalityModelDir": "/home/aml7990/Code/creative-judgeLM/model_training/flan-t5-xl-multitask/flan-t5-xl-multitask-originality-scoring/",
-    "itemResponseQualityModelDir": "/home/aml7990/Code/creative-judgeLM/model_training/flan-t5-xl-multitask/flan-t5-xl-multitask-originality-scoring/",
+    # scoring models dirs (ignored if using OCSAI)
+    # TODO: add a param for the scorer type, to switch between OCSAI and a local model
+    "itemResponseOriginalityModelDir": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/CPS/version_1_models/originality_model_factor_score/",
+    "itemResponseQualityModelDir": "",
     # model dirs and flags
-    "itemGenModelName": "meta-llama/Meta-Llama-3.1-70B-Instruct",
-    "itemEvalModelName": "meta-llama/Llama-3.2-3B-Instruct",
-    "itemResponseGenModelName": "meta-llama/Llama-3.2-3B-Instruct",
+    "itemGenModelName": "meta-llama/Llama-3.1-70B-Instruct",
+    "itemEvalModelName": "",
+    "itemResponseGenModelName": "meta-llama/Llama-3.1-8B-Instruct",
     "useItemEvalModel": False,
     "useItemScoring": True,  # only set to false if you want to generate a bunch of items without prompt optimization
     "useItemScoringModelPeft": False,
     # dataset dirs
-    "wordlistFile": None,  # "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
+    "wordlistFile": "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",  # "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
     # if not using a wordlist, must specify the below to dicate how many items to generate on the first pass
-    "NumSeedItems": 5,
+    "NumSeedItems": 0,
     # "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
     "demographicsFile": None,
     ## prompt config file ##
