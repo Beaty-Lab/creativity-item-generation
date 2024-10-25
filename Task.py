@@ -49,6 +49,7 @@ class AbstractTask(ABC):
 
 class CPS(AbstractTask):
     # add custom modules under the class def
+    # TODO: these need to be passed as args
     roberta_scorer = imp.load_source(
         "RLPS_RoBERTa",
         "/home/aml7990/Code/creativity-item-generation/scorers/CPS/CPSFinetuneTLM.py",
@@ -332,9 +333,10 @@ class CPS(AbstractTask):
 
 
 class Consequences(AbstractTask):
+    # TODO: make the scorer an arg
     scorer = imp.load_source(
         "predict_with_model",
-        "/home/aml7990/Code/creativity-item-generation/scorers/consequences/flan-t5/ConsequencesFinetuneTLM.py",
+        "/home/aml7990/Code/creativity-item-generation/scorers/consequences/OCSAI/oscai_scoring.py",
     )
 
     def __init__(self) -> None:
@@ -557,12 +559,12 @@ class Consequences(AbstractTask):
     # TODO: implement sentiment analysis scorer
     def RunScorers(self, i: int) -> None:
         self.scorer.predict_with_model(
-            config["itemResponseOriginalityModelDir"],
+            # config["itemResponseOriginalityModelDir"],
             config["itemResponseGenOutputFile"],
-            config["shotSelectionMetric"],
-            config[
-                "itemResponseGenOutputFile"
-            ],  # we need to chop off most columns from the first instance, so send another copy to save to
+            # config["shotSelectionMetric"],
+            # config[
+            #     "itemResponseGenOutputFile"
+            # ],  # we need to chop off most columns from the first instance, so send another copy to save to
             i,  # round
         )
 
