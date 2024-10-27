@@ -186,7 +186,7 @@ item_response_gen_prompts = [
     [  # baseline
         (
             "system",
-            "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+            "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph, and do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 1
@@ -201,7 +201,7 @@ item_response_gen_prompts = [
     [  # include demographics (potential bias)
         (
             "system",
-            "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+            "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph, and do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 2
@@ -216,7 +216,7 @@ item_response_gen_prompts = [
     [  # demographics (less biased) + psychometrics
         (
             "system",
-            "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+            "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph, and do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 3
