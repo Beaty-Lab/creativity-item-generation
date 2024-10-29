@@ -6,7 +6,7 @@ config = {
     # must be one of CPS or consequences
     "task": TASK,
     # numeric params
-    "random_seed": 666,
+    "random_seed": 333,
     "numIter": 5,
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
@@ -22,7 +22,7 @@ config = {
     "itemResponseGenTopP": 1.0,
     "itemGenPromptIdx": 0,
     "itemEvalPromptIdx": 0,
-    "itemResponseGenPromptIdx": 0,
+    "itemResponseGenPromptIdx": 1,
     "itemGenMaxTokens": 500,
     "itemEvalMaxTokens": 2048,
     "itemResponseGenMaxTokens": 100,  # will be the same as the max for item gen if using the same model
@@ -52,8 +52,8 @@ config = {
     "wordlistFile": "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",  # "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
     # if not using a wordlist, must specify the below to dicate how many items to generate on the first pass
     "NumSeedItems": 0,
-    # "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
-    "demographicsFile": None,
+    "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/DemographicData.csv",
+    # "demographicsFile": None,
     ## prompt config file ##
     "promptConfig": f"/home/aml7990/Code/creativity-item-generation/prompts/{TASK}_prompts.py",
     ## scorer training params ##
@@ -100,10 +100,10 @@ config = {
 item_gen_model_name = config["itemGenModelName"].split("/")[1]
 item_response_gen_model_name = config["itemResponseGenModelName"].split("/")[1]
 config["itemGenOutputFile"] = (
-    f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/{item_gen_model_name}_seed={config['random_seed']}_prompt={config['itemGenPromptIdx']}/items.json"
+    f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/{item_gen_model_name}_seed={config['random_seed']}_item_gen_prompt={config['itemGenPromptIdx']}_item_response_prompt={config['itemResponseGenPromptIdx']}_shot_selection_method={config['shotSelectionAlgorithm']}/items.json"
 )
 config["itemResponseGenOutputFile"] = (
-    f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/{item_gen_model_name}_seed={config['random_seed']}_prompt={config['itemGenPromptIdx']}/item_responses"
+    f"/home/aml7990/Code/creativity-item-generation/outputs/{TASK}/{item_gen_model_name}_seed={config['random_seed']}_item_gen_prompt={config['itemGenPromptIdx']}_item_response_prompt={config['itemResponseGenPromptIdx']}_shot_selection_method={config['shotSelectionAlgorithm']}/item_responses"
 )
 config["itemEvalOutputFile"] = config["itemGenOutputFile"]
 config["logFile"] = "log.txt"
