@@ -85,12 +85,12 @@ def _init_models(config: dict) -> Tuple:
                 max_output_tokens=config["itemGenMaxTokens"],
                 max_retries=1,
             )
-        elif config["itemGenModelName"] == "claude-3":
+        elif config["itemGenModelName"] == "claude-3-haiku":
             item_gen_llm = ChatAnthropic(
                 model_name="claude-3-haiku-20240307",
                 max_tokens_to_sample=config["itemGenMaxTokens"],
                 temperature=config["itemGenTemperature"],
-                anthropic_api_key=ANTHROPIC_KEY,
+                anthropic_api_key=ANTHROPIC_API_KEY,
             )
         else:
             model_kwargs = {
@@ -109,15 +109,15 @@ def _init_models(config: dict) -> Tuple:
                 **model_kwargs,
             )
 
-        pipeline = hf_pipeline(
-            task="text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            batch_size=1,
-            max_new_tokens=config["itemGenMaxTokens"],
-            model_kwargs=model_kwargs,
-        )
-        item_gen_llm = HuggingFacePipeline(pipeline=pipeline)
+            pipeline = hf_pipeline(
+                task="text-generation",
+                model=model,
+                tokenizer=tokenizer,
+                batch_size=1,
+                max_new_tokens=config["itemGenMaxTokens"],
+                model_kwargs=model_kwargs,
+            )
+            item_gen_llm = HuggingFacePipeline(pipeline=pipeline)
 
     except Exception as e:
         with open(config["logFile"], "a") as log:
@@ -156,12 +156,12 @@ def _init_models(config: dict) -> Tuple:
                     max_output_tokens=config["itemEvalMaxTokens"],
                     max_retries=1,
                 )
-            elif config["itemEvalModelName"] == "claude-3":
+            elif config["itemEvalModelName"] == "claude-3-haiku":
                 item_eval_llm = ChatAnthropic(
                     model_name="claude-3-haiku-20240307",
                     max_tokens_to_sample=config["itemEvalMaxTokens"],
                     temperature=config["itemEvalTemperature"],
-                    anthropic_api_key=ANTHROPIC_KEY,
+                    anthropic_api_key=ANTHROPIC_API_KEY,
                 )
             else:
                 model_kwargs = {
@@ -226,12 +226,12 @@ def _init_models(config: dict) -> Tuple:
                 max_output_tokens=config["itemGenMaxTokens"],
                 max_retries=1,
             )
-        elif config["itemResponseGenModelName"] == "claude-3":
+        elif config["itemResponseGenModelName"] == "claude-3-haiku":
             item_response_llm = ChatAnthropic(
                 model_name="claude-3-haiku-20240307",
                 max_tokens_to_sample=config["itemGenMaxTokens"],
                 temperature=config["itemGenTemperature"],
-                anthropic_api_key=ANTHROPIC_KEY,
+                anthropic_api_key=ANTHROPIC_API_KEY,
             )
         else:
             model_kwargs = {
