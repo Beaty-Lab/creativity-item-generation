@@ -61,6 +61,8 @@ def _init_models(config: dict) -> Tuple:
         if (
             config["itemGenModelName"] == "gpt-4"
             or config["itemGenModelName"] == "gpt-3.5-turbo"
+            or config["itemGenModelName"] == "gpt-4o-mini"
+            or config["itemGenModelName"] == "gpt-4o"
         ):
             model_kwargs = {
                 "top_p": config["itemGenTopP"],
@@ -69,7 +71,7 @@ def _init_models(config: dict) -> Tuple:
             }
             item_gen_llm = ChatOpenAI(
                 model_name=config["itemGenModelName"],
-                openai_api_key=OPENAI_KEY,
+                openai_api_key=OPENAI_API_KEY,
                 temperature=config["itemGenTemperature"],
                 max_tokens=config["itemGenMaxTokens"],
                 model_kwargs=model_kwargs,
@@ -85,9 +87,9 @@ def _init_models(config: dict) -> Tuple:
                 max_output_tokens=config["itemGenMaxTokens"],
                 max_retries=1,
             )
-        elif config["itemGenModelName"] == "claude-3-haiku":
+        elif config["itemGenModelName"] == "claude-3-haiku" or config["itemGenModelName"] == "claude-3-5-haiku-20241022":
             item_gen_llm = ChatAnthropic(
-                model_name="claude-3-haiku-20240307",
+                model_name=config["itemGenModelName"],
                 max_tokens_to_sample=config["itemGenMaxTokens"],
                 temperature=config["itemGenTemperature"],
                 anthropic_api_key=ANTHROPIC_API_KEY,
@@ -133,6 +135,8 @@ def _init_models(config: dict) -> Tuple:
             if (
                 config["itemEvalModelName"] == "gpt-4"
                 or config["itemEvalModelName"] == "gpt-3.5-turbo"
+                or config["itemEvalModelName"] == "gpt-4o-mini"
+                or config["itemEvalModelName"] == "gpt-4o"
             ):
                 model_kwargs = {
                     "top_p": config["itemEvalTopP"],
@@ -141,7 +145,7 @@ def _init_models(config: dict) -> Tuple:
                 }
                 item_eval_llm = ChatOpenAI(
                     model_name=config["itemEvalModelName"],
-                    openai_api_key=OPENAI_KEY,
+                    openai_api_key=OPENAI_API_KEY,
                     temperature=config["itemEvalTemperature"],
                     max_tokens=config["itemEvalMaxTokens"],
                     model_kwargs=model_kwargs,
@@ -156,9 +160,9 @@ def _init_models(config: dict) -> Tuple:
                     max_output_tokens=config["itemEvalMaxTokens"],
                     max_retries=1,
                 )
-            elif config["itemEvalModelName"] == "claude-3-haiku":
+            elif config["itemEvalModelName"] == "claude-3-haiku" or config["itemEvalModelName"] == "claude-3-5-haiku-20241022":
                 item_eval_llm = ChatAnthropic(
-                    model_name="claude-3-haiku-20240307",
+                    model_name=config["itemEvalModelName"],
                     max_tokens_to_sample=config["itemEvalMaxTokens"],
                     temperature=config["itemEvalTemperature"],
                     anthropic_api_key=ANTHROPIC_API_KEY,
@@ -203,6 +207,8 @@ def _init_models(config: dict) -> Tuple:
         if (
             config["itemResponseGenModelName"] == "gpt-4"
             or config["itemResponseGenModelName"] == "gpt-3.5-turbo"
+            or config["itemResponseGenModelName"] == "gpt-4o-mini"
+            or config["itemResponseGenModelName"] == "gpt-4o"
         ):
             model_kwargs = {
                 "top_p": config["itemResponseGenTopP"],
@@ -211,7 +217,7 @@ def _init_models(config: dict) -> Tuple:
             }
             item_response_llm = ChatOpenAI(
                 model_name=config["itemResponseGenModelName"],
-                openai_api_key=OPENAI_KEY,
+                openai_api_key=OPENAI_API_KEY,
                 temperature=config["itemResponseGenTemperature"],
                 max_tokens=config["itemResponseGenMaxTokens"],
                 model_kwargs=model_kwargs,
@@ -226,9 +232,9 @@ def _init_models(config: dict) -> Tuple:
                 max_output_tokens=config["itemGenMaxTokens"],
                 max_retries=1,
             )
-        elif config["itemResponseGenModelName"] == "claude-3-haiku":
+        elif config["itemResponseGenModelName"] == "claude-3-haiku" or config["itemResponseGenModelName"] == "claude-3-5-haiku-20241022":
             item_response_llm = ChatAnthropic(
-                model_name="claude-3-haiku-20240307",
+                model_name=config["itemResponseGenModelName"],
                 max_tokens_to_sample=config["itemGenMaxTokens"],
                 temperature=config["itemGenTemperature"],
                 anthropic_api_key=ANTHROPIC_API_KEY,
