@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import re
+import traceback
 import pandas as pd
 from config import config
 from os.path import join
@@ -10,7 +11,7 @@ from pathlib import Path
 from langchain.prompts.chat import _convert_to_message
 from langchain.schema import BaseOutputParser, StrOutputParser, OutputParserException
 from langchain_core.runnables import RunnableLambda, RunnableParallel
-from langchain.output_parsers import RetryOutputParser
+from langchain.output_parsers.retry import RetryOutputParser
 from langchain.prompts.chat import ChatPromptTemplate
 
 
@@ -155,10 +156,10 @@ def create_scenarios(
                     )
                     print(result)
 
-            except Exception as e:
+            except Exception:
                 with open(config["logFile"], "a") as log:
-                    print(e)
-                    log.writelines(str(e) + "\n")
+                    print(traceback.format_exc())
+                    log.writelines(str(traceback.format_exc()) + "\n")
                 result = np.nan
                 prompt = np.nan
                 continue
@@ -211,10 +212,10 @@ def create_scenarios(
                         numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
                     )
                     print(result)
-                except Exception as e:
+                except Exception:
                     with open(config["logFile"], "a") as log:
-                        print(e)
-                        log.writelines(str(e) + "\n")
+                        print(traceback.format_exc())
+                        log.writelines(str(traceback.format_exc()) + "\n")
                     result = np.nan
                     prompt = np.nan
                     continue
@@ -282,10 +283,10 @@ def create_scenarios(
                         numAttempts=numItemGenerationAttempts,  # keep on generating scenarios until the model passes all quality control checks
                     )
                     print(result)
-                except Exception as e:
+                except Exception:
                     with open(config["logFile"], "a") as log:
-                        print(e)
-                        log.writelines(str(e) + "\n")
+                        print(traceback.format_exc())
+                        log.writelines(str(traceback.format_exc()) + "\n")
                     result = np.nan
                     prompt = np.nan
                     continue

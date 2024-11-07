@@ -35,10 +35,7 @@ from config import config
 from key import OPENAI_API_KEY, GEMINI_KEY, ANTHROPIC_API_KEY
 
 # OpenAI
-from langchain.chat_models import ChatOpenAI
-
-# Gemini
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 # Claude
 from langchain_anthropic import ChatAnthropic
@@ -75,17 +72,6 @@ def _init_models(config: dict) -> Tuple:
                 temperature=config["itemGenTemperature"],
                 max_tokens=config["itemGenMaxTokens"],
                 model_kwargs=model_kwargs,
-            )
-        elif config["itemGenModelName"] == "google":
-            # gemini doesn't have a frequency or presence penalty
-            item_gen_llm = ChatGoogleGenerativeAI(
-                model="gemini-pro",
-                convert_system_message_to_human=True,
-                google_api_key=GEMINI_KEY,
-                temperature=config["itemGenTemperature"],
-                top_p=config["itemGenTopP"],
-                max_output_tokens=config["itemGenMaxTokens"],
-                max_retries=1,
             )
         elif config["itemGenModelName"] == "claude-3-haiku" or config["itemGenModelName"] == "claude-3-5-haiku-20241022":
             item_gen_llm = ChatAnthropic(
@@ -150,16 +136,6 @@ def _init_models(config: dict) -> Tuple:
                     max_tokens=config["itemEvalMaxTokens"],
                     model_kwargs=model_kwargs,
                 )
-            elif config["itemEvalModelName"] == "google":
-                item_eval_llm = ChatGoogleGenerativeAI(
-                    model="gemini-pro",
-                    convert_system_message_to_human=True,
-                    google_api_key=GEMINI_KEY,
-                    temperature=config["itemEvalTemperature"],
-                    top_p=config["itemEvalTopP"],
-                    max_output_tokens=config["itemEvalMaxTokens"],
-                    max_retries=1,
-                )
             elif config["itemEvalModelName"] == "claude-3-haiku" or config["itemEvalModelName"] == "claude-3-5-haiku-20241022":
                 item_eval_llm = ChatAnthropic(
                     model_name=config["itemEvalModelName"],
@@ -221,16 +197,6 @@ def _init_models(config: dict) -> Tuple:
                 temperature=config["itemResponseGenTemperature"],
                 max_tokens=config["itemResponseGenMaxTokens"],
                 model_kwargs=model_kwargs,
-            )
-        elif config["itemResponseGenModelName"] == "google":
-            item_response_llm = ChatGoogleGenerativeAI(
-                model="gemini-pro",
-                convert_system_message_to_human=True,
-                google_api_key=GEMINI_KEY,
-                temperature=config["itemGenTemperature"],
-                top_p=config["itemGenTopP"],
-                max_output_tokens=config["itemGenMaxTokens"],
-                max_retries=1,
             )
         elif config["itemResponseGenModelName"] == "claude-3-haiku" or config["itemResponseGenModelName"] == "claude-3-5-haiku-20241022":
             item_response_llm = ChatAnthropic(
