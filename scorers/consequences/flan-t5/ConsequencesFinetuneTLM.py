@@ -28,6 +28,8 @@ from transformers import (
     DataCollatorWithPadding,
 )
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+from pathlib import Path
+home = Path.home()
 
 def predict_with_model(
     trained_model_dir: str,
@@ -87,7 +89,7 @@ def predict_with_model(
         return mse
 
     training_args = TrainingArguments(
-        output_dir="/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation",
+        output_dir=f"{home}/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model_evaluation",
         learning_rate=0.00005,
         num_train_epochs=116,
         per_device_train_batch_size=16,

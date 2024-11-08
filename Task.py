@@ -21,6 +21,8 @@ import re
 import pandas as pd
 from readability import Readability
 from nltk import word_tokenize
+from pathlib import Path
+home = Path.home()
 
 # TODO update the task classses to use the scoring predict function and load the correct py scrip
 
@@ -52,7 +54,7 @@ class CPS(AbstractTask):
     # TODO: these need to be passed as args
     roberta_scorer = imp.load_source(
         "RLPS_RoBERTa",
-        "/home/aml7990/Code/creativity-item-generation/scorers/CPS/CPSFinetuneTLM.py",
+        f"{home}/Code/creativity-item-generation/scorers/CPS/CPSFinetuneTLM.py",
     )
 
     def __init__(self) -> None:
@@ -339,7 +341,7 @@ class Consequences(AbstractTask):
     # TODO: make the scorer an arg
     scorer = imp.load_source(
         "predict_with_model",
-        "/home/aml7990/Code/creativity-item-generation/scorers/consequences/OCSAI/oscai_scoring.py",
+        f"{home}/Code/creativity-item-generation/scorers/consequences/OCSAI/oscai_scoring.py",
     )
 
     def __init__(self) -> None:
