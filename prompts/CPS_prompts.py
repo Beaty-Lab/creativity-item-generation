@@ -41,172 +41,6 @@ wordlist_gen_prompts = [
 ]
 
 item_gen_prompts = [
-    [
-        ("system", "You are a scenario writer."),
-        (
-            "human",  # 1
-            """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. These scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
-
-        ###
-
-        Word list:
-        {word_list}
-
-        ###
-
-        Scenario:
-        """,
-        ),
-    ],
-    [
-        ("system", "You are a screenwriter."),
-        (
-            "human",  # 2
-            """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
-
-        ###
-
-        Word list:
-        {word_list}
-
-        ###
-
-        Scenario:
-        """,
-        ),
-    ],
-    [
-        ("system", "You are a young adult novelist."),
-        (
-            "human",  # 3
-            """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
-
-        ###
-
-        Word list:
-        {word_list}
-
-        ###
-
-        Scenario:
-        """,
-        ),
-    ],
-    [
-        ("system", "You are a film director."),
-        (
-            "human",  # 4
-            """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
-
-        ###
-
-        Word list:
-        {word_list}
-
-        ###
-
-        Scenario:
-        """,
-        ),
-    ],
-    [
-        ("sytem", "You are a YouTube content creator."),
-        (
-            "human",  # 5
-            """You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of 3 different scenarios that involve all the words. This scenarios should involve dilemmas that one of the named people from the list needs to solve. These dilemmas should be relatable to an average person, and they should also have no clear solution. Include as many details about the situations as you can, and try to keep your scenarios at about a paragraph each. Make sure what you write is not too difficult to read: avoid complex jargon wherever possible.
-
-        ###
-
-        Word list:
-        {word_list}
-
-        ###
-
-        Scenario:
-        """,
-        ),
-    ],
-    [  # 6
-        (
-            "system",
-            """You are an author tasked with producing scenarios for a short story. You will be given a list of 4 words, consisting of 2 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
-
-                    1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
-                    2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
-                    3. Include as many details about the scenario as you can.
-                    4. Respond in at least 8 sentences and include as many details as possible.
-                    5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
-                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible. It should be easy for someone with a high school education to read.
-                    7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
-                    8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
-                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others. Remember: do not suggest any possible solution in the scenario.
-                    10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.""",
-        ),
-        (
-            "human",
-            """Word list:
-                    {word_list}
-
-                    ###
-
-                    Scenario:""",
-        ),
-    ],
-    [  # 7, 5 word scenario
-        (
-            "system",
-            """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
-
-                    1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
-                    2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
-                    3. Include as many details about the scenario as you can.
-                    4. Respond in at least 8 sentences and in a single paragraph.
-                    5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
-                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible. It should be easy for someone with a high school education to read.
-                    7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
-                    8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
-                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others. Remember: do not suggest any possible solution in the scenario.
-                    10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.""",
-        ),
-        (
-            "human",
-            """Word list:
-        {word_list}
-
-        ###
-
-        Scenario:""",
-        ),
-    ],
-    [  # 8, including topic of dilemnia
-        (
-            "system",
-            """You are an author tasked with producing scenarios for a short story. You will be given a list of 5 words, consisting of 3 names, a place, and an action. Using ONLY these words, think of a scenario that involves all the words. This scenario should involve a dilemma that one of the named people from the list, the main character, needs to solve. Here is a list of rules you should follow when writing the scenario:
-
-                    1. The dilemma should be relatable to an average college student and must involve scenarios that a typical college student might need to confront.
-                    2. Do not suggest any possible solution to the dilemma in the scenario, avoid phrases like "She is torn between...", "On the one hand...", "On the other hand...", or "He is not sure whether he should do X or Y..." as these may imply possible solutions to the dilemma. The scenario will be given to another writer as part of a writing prompt, and we do not want to bias their writing by suggesting how the story will unfold. Focus only on describing the dilemma and its significance to the main character.
-                    3. Include as many details about the scenario as you can.
-                    4. Respond in at least 8 but no more than 12 sentences and in a single paragraph.
-                    5. In the last sentence, state something like "Z does not know what to do.", where Z is the name of the main character.
-                    6. Make sure what you write is not too difficult to read; avoid complex jargon wherever possible. It should be easy for someone with a high school education to read.
-                    7. Avoid scenarios that deal with either jealousy in relationships or involve ethical or moral dilemmas.
-                    8. Avoid scenarios that require specific domain knowledge or experience to solve. Remember, the dilemma needs to be relatable to an average college student.
-                    9. The scenario should be open-ended and have more than 2 possible solutions. The scenario should also be ambiguous and have no solution that is clearly better or more obvious than the others. Remember: do not suggest any possible solution in the scenario.
-                    10. Your scenario should involve higher stakes than the personal preferences of the main character; there should be clear repercussions from any potential action, such that solving the dilemma requires critical thinking.""",
-        ),
-        (
-            "human",
-            """Word list:
-                    {word_list}
-
-                    Dilemma topic:
-                    {topic}
-
-                    ###
-
-                    Scenario:""",
-        ),
-    ],
     [  # 9, including the evaluation scale (for LLM feedback)
         # TODO: load the human items from a dataset
         (
@@ -352,7 +186,7 @@ item_response_gen_prompts = [
     [  # baseline
         (
             "system",
-            "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+            "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph, and do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 1
@@ -367,7 +201,7 @@ item_response_gen_prompts = [
     [  # include demographics (potential bias)
         (
             "system",
-            "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+            "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph, and do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 2
@@ -382,7 +216,7 @@ item_response_gen_prompts = [
     [  # demographics (less biased) + psychometrics
         (
             "system",
-            "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph.",
+            "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 4 sentences in length. Respond in a single paragraph, and do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 3

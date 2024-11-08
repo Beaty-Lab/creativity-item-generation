@@ -21,6 +21,10 @@ import re
 import pandas as pd
 from readability import Readability
 from nltk import word_tokenize
+from pathlib import Path
+home = Path.home()
+
+# TODO update the task classses to use the scoring predict function and load the correct py scrip
 
 
 class AbstractTask(ABC):
@@ -47,9 +51,10 @@ class AbstractTask(ABC):
 
 class CPS(AbstractTask):
     # add custom modules under the class def
+    # TODO: these need to be passed as args
     roberta_scorer = imp.load_source(
         "RLPS_RoBERTa",
-        "/home/aml7990/Code/creativity-item-generation/scorers/RLPS_RoBERTa.py",
+        f"{home}/Code/creativity-item-generation/scorers/CPS/CPSFinetuneTLM.py",
     )
 
     def __init__(self) -> None:
@@ -87,9 +92,12 @@ class CPS(AbstractTask):
         # TODO: can we pass the parsing exception into the retry parser, add it to the retry prompt?
         @staticmethod
         def parse(text: str) -> str:
-            # get rid of the instructions
-            text = text.split("Scenario:")[1]
-            print(text)
+            # get rid of the instructions (only applies to huggingface models)
+            try:
+                text_split = text.split("Scenario:")[1]
+            except Exception:
+                text_split = text
+            print(text_split)
             forbidden_strings = [
                 "On the one hand",
                 "On the other hand",
@@ -101,28 +109,28 @@ class CPS(AbstractTask):
             ]
 
             # Remove intervening newlines
-            text = re.sub("\n", "", text)
-            text = re.sub("\t", "", text)
+            text_split = re.sub("\n", "", text_split)
+            text_split = re.sub("\t", "", text_split)
 
-            if text is None:
+            if text_split is None:
                 print("Empty string generated.")
                 raise OutputParserException("Empty string generated.")
 
             # remove all text after stop sequence
-            if "I am finished with this scenario." not in text:
+            if "I am finished with this scenario." not in text_split:
                 print("Termination string not found.")
                 raise OutputParserException("Termination string not found.")
             else:
                 head, sep, tail = text.partition("I am finished with this scenario.")
-                text = head
+                text_split = head
 
             # remove phrases indicating LLM is "spelling out" solution
             for f in forbidden_strings:
-                if f in text:
+                if f in text_split:
                     print("Scenario contains forbidden string.")
                     raise OutputParserException("Scenario contains forbidden string.")
 
-            readability = Readability(text)
+            readability = Readability(text_split)
             if len(word_tokenize(text)) < 140:  # drop scenarios that are too short
                 print("Scenario too short.")
                 raise OutputParserException("Scenario too short.")
@@ -133,9 +141,9 @@ class CPS(AbstractTask):
                 print("Scenario too difficult to read.")
                 raise OutputParserException("Scenario too difficult to read.")
 
-            text = text.strip("\n").strip(" ")
+            text_split = text_split.strip("\n").strip(" ")
 
-            return text  # , "OK"
+            return text_split  # , "OK"
 
     @staticmethod
     def RunItemGeneration(
@@ -208,7 +216,7 @@ class CPS(AbstractTask):
             )  # StrOutputParser grabs the content field from chat models
             validation_chain = RunnableParallel(
                 completion=completion_chain, prompt_value=prompt_formatted
-            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(completion=x["completion"], prompt_value=x["prompt_value"]))
 
             if ratings_from_file is not None:
                 final_prompt = prompt_formatted.format(
@@ -252,7 +260,7 @@ class CPS(AbstractTask):
             # Should we be unable to fix the scenario, we return "None", these get dropped later
             validation_chain = RunnableParallel(
                 completion=completion_chain, prompt_value=prompt_formatted
-            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(completion=x["completion"], prompt_value=x["prompt_value"]))
 
             final_prompt = prompt_formatted.format(word_list=word_list)
             result = validation_chain.invoke({"word_list": word_list})
@@ -308,6 +316,15 @@ class CPS(AbstractTask):
     # run scoring for the task
     # to ensure correct behavior, round must always be passed
     def RunScorers(self, i: int) -> None:
+        """
+        Run the scoring process for the task.
+
+        Args:
+            i (int): The round number.
+
+        Returns:
+            None
+        """
         self.roberta_scorer.predict_with_model(
             config["itemResponseOriginalityModelDir"],
             config["itemResponseGenOutputFile"],
@@ -321,9 +338,10 @@ class CPS(AbstractTask):
 
 
 class Consequences(AbstractTask):
-    oscai_scorer = imp.load_source(
-        "oscai_scoring",
-        "/home/aml7990/Code/creativity-item-generation/scorers/oscai_scoring.py",
+    # TODO: make the scorer an arg
+    scorer = imp.load_source(
+        "predict_with_model",
+        f"{home}/Code/creativity-item-generation/scorers/consequences/OCSAI/oscai_scoring.py",
     )
 
     def __init__(self) -> None:
@@ -334,10 +352,8 @@ class Consequences(AbstractTask):
         @staticmethod
         def parse(text: str) -> str:
             forbidden_strings = [
-                "causing",
-                "leads to",
-                "resulting in",
-                "revolutionizes",
+                "###",
+                "*"
             ]
             try:
                 if "Consequences:" in text:
@@ -356,14 +372,33 @@ class Consequences(AbstractTask):
             # Remove intervening newlines
             text = re.sub("\n", "", text)
             text = re.sub("\t", "", text)
+            if not text.endswith("."):
+                print("Response consequences should end with a period.")
+                raise OutputParserException("Response consequences should end with a period.")
 
             return text
 
     class CreativityScenarioItemParser(BaseOutputParser):
         @staticmethod
         def parse(text: str) -> str:
-            # TODO: implement
-            text = text.split("Scenario:")[1]
+            forbidden_strings = [
+                "your",
+                "this scenario would",
+                "you respond",
+                "human:",
+                "this is a great scenario",
+                "this is a bad scenario",
+                "the author",
+                "Please describe the scenario in 12 words at most."
+            ]
+
+            text = text.split("Scenario:")[-1].split("###")[0]
+            for f in forbidden_strings:
+                if f in text.lower():
+                    print("Scenario contains forbidden string.")
+                    raise OutputParserException("Scenario contains forbidden string.")
+            if len(re.findall(r"([0-9]\.)", text)) > 0:
+                text = re.split(r"([0-9]\.)", text)[::2][1]
 
             # Remove intervening newlines
             text = re.sub("\n", "", text)
@@ -437,7 +472,7 @@ class Consequences(AbstractTask):
             )  # StrOutputParser grabs the content field from chat models
             validation_chain = RunnableParallel(
                 completion=completion_chain, prompt_value=prompt_formatted
-            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(completion=x["completion"], prompt_value=x["prompt_value"]))
 
             if ratings_from_file is not None:
                 final_prompt = prompt_formatted.format(
@@ -471,7 +506,7 @@ class Consequences(AbstractTask):
             # Should we be unable to fix the scenario, we return "None", these get dropped later
             validation_chain = RunnableParallel(
                 completion=completion_chain, prompt_value=prompt_formatted
-            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(**x))
+            ) | RunnableLambda(lambda x: retry_parser.parse_with_prompt(completion=x["completion"], prompt_value=x["prompt_value"]))
 
             final_prompt = prompt_formatted.format()
             result = validation_chain.invoke({})
@@ -528,8 +563,13 @@ class Consequences(AbstractTask):
     # to ensure correct behavior, round must always be passed
     # TODO: implement sentiment analysis scorer
     def RunScorers(self, i: int) -> None:
-        self.oscai_scorer.predict_with_model(
+        self.scorer.predict_with_model(
+            # config["itemResponseOriginalityModelDir"],
             config["itemResponseGenOutputFile"],
+            # config["shotSelectionMetric"],
+            # config[
+            #     "itemResponseGenOutputFile"
+            # ],  # we need to chop off most columns from the first instance, so send another copy to save to
             i,  # round
         )
 

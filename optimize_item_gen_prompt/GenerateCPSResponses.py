@@ -6,7 +6,7 @@ import pandas as pd
 from config import config
 
 from transformers import pipeline as hf_pipeline
-from key import OPENAI_KEY
+from key import OPENAI_API_KEY
 import time
 
 
