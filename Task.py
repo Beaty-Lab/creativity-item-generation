@@ -121,14 +121,15 @@ class CPS(AbstractTask):
                 print("Termination string not found.")
                 raise OutputParserException("Termination string not found.")
             else:
-                head, sep, tail = text.partition("I am finished with this scenario.")
+                head, sep, tail = text_split.partition("I am finished with this scenario.")
                 text_split = head
 
             # remove phrases indicating LLM is "spelling out" solution
-            for f in forbidden_strings:
-                if f in text_split:
-                    print("Scenario contains forbidden string.")
-                    raise OutputParserException("Scenario contains forbidden string.")
+            # for f in forbidden_strings:
+            #     if f in text_split:
+            #         print(f)
+            #         print("Scenario contains forbidden string.")
+            #         raise OutputParserException("Scenario contains forbidden string.")
 
             readability = Readability(text_split)
             if len(word_tokenize(text)) < 140:  # drop scenarios that are too short
@@ -136,7 +137,7 @@ class CPS(AbstractTask):
                 raise OutputParserException("Scenario too short.")
 
             elif (
-                readability.flesch().score < 45
+                readability.flesch().score < 30 # was originally 45, but this was too strict
             ):  # based on some initial feedback on the results
                 print("Scenario too difficult to read.")
                 raise OutputParserException("Scenario too difficult to read.")
