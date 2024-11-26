@@ -20,12 +20,15 @@ from transformers import pipeline as hf_pipeline
 from langchain.prompts.chat import ChatPromptTemplate
 from datasets import load_from_disk
 
-from prompts import prompts
+from prompts import prompts, o1_prompts
 from Config import few_shot_config
 from key import ANTHROPIC_KEY, OPENAI_KEY
 from random import choice
 import time
 
+
+if "o1" in few_shot_config["ModelName"] and "/" not in few_shot_config["ModelName"]:
+    prompts = o1_prompts
 
 def compute_metrics(predictions, references):
     correlation = spearmanr(predictions, references)[0]
@@ -134,6 +137,8 @@ def LLMTrial(train_df: pd.DataFrame, test_df: pd.DataFrame, model) -> Dict:
                     }
                 )
             try:
+                if len(result) == 0:
+                    result = choice([0, 1, 2, 3])
                 result = int(result)
             except Exception:
                 if result[-1].isdigit():
@@ -153,9 +158,9 @@ def LLMTrial(train_df: pd.DataFrame, test_df: pd.DataFrame, model) -> Dict:
 if __name__ == "__main__":
     # load the LLM
     try:
-        if few_shot_config["ModelName"] == "claude-3":
+        if "claude" in few_shot_config["ModelName"]:
             model = ChatAnthropic(
-                model_name="claude-3-5-sonnet-20240620",  # TODO: no hard code here
+                model_name=few_shot_config["ModelName"],
                 max_tokens_to_sample=few_shot_config["MaxTokens"],
                 temperature=few_shot_config["Temperature"],
                 anthropic_api_key=ANTHROPIC_KEY,
@@ -172,6 +177,16 @@ if __name__ == "__main__":
                 temperature=few_shot_config["Temperature"],
                 max_tokens=few_shot_config["MaxTokens"],
                 model_kwargs=model_kwargs,
+            )
+        elif "o1" in few_shot_config["ModelName"] and "/" not in few_shot_config["ModelName"]:
+            model_kwargs = {
+                "max_completion_tokens": few_shot_config["MaxTokens"],
+            }
+            model = ChatOpenAI(
+                model_name=few_shot_config["ModelName"],
+                openai_api_key=OPENAI_KEY,
+                model_kwargs=model_kwargs,
+                temperature=1,
             )
         else:
             bnb_config = bnb_config = BitsAndBytesConfig(
@@ -257,3 +272,4 @@ if __name__ == "__main__":
             few_shot_config["TestSet"], few_shot_config["label"]
         )
         LLMTrial(train_df, test_df, model)
+        test_df.to_csv(f"{few_shot_config['ModelName']}_{few_shot_config['label']}_{few_shot_config['TopP']}_{few_shot_config['Temperature']}_{few_shot_config['random_seed']}.csv")
