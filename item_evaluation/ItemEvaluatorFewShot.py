@@ -237,7 +237,10 @@ if __name__ == "__main__":
         for i, (train_index, test_index) in enumerate(skf.split(X, y)):
             train_df = deepcopy(combined_df.iloc[train_index])
             test_df = deepcopy(combined_df.iloc[test_index])
-            model_name = few_shot_config["ModelName"]
+            if "/" in few_shot_config["ModelName"]:
+                model_name = few_shot_config["ModelName"].split("/")[1]
+            else:
+                model_name = few_shot_config["ModelName"]
             topp = few_shot_config["TopP"]
             temperature = few_shot_config["Temperature"]
             label = few_shot_config["label"]
