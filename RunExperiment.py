@@ -417,6 +417,8 @@ def RunExperiment(config: dict):
                 config["shotSelectionAggregate"],
                 config["random_seed"],
                 config["shotSelectionAlgorithm"],
+                config["baselineSimScore"],
+                config["baselineOriginality"],
             )
     # TODO: add DB support for writing items, checking for similarity within database
 

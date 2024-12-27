@@ -14,7 +14,7 @@ from langchain.schema import BaseOutputParser
 
 # API key stored in key.py, and should NOT be committed
 # TODO: add support for other api models called directly from this script
-from key import OPENAI_KEY
+from key import OPENAI_API_KEY
 from tqdm import tqdm
 
 

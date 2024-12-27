@@ -125,11 +125,11 @@ class CPS(AbstractTask):
                 text_split = head
 
             # remove phrases indicating LLM is "spelling out" solution
-            # for f in forbidden_strings:
-            #     if f in text_split:
-            #         print(f)
-            #         print("Scenario contains forbidden string.")
-            #         raise OutputParserException("Scenario contains forbidden string.")
+            for f in forbidden_strings:
+                if f in text_split:
+                    print(f)
+                    print("Scenario contains forbidden string.")
+                    raise OutputParserException("Scenario contains forbidden string.")
 
             readability = Readability(text_split)
             if len(word_tokenize(text)) < 140:  # drop scenarios that are too short
@@ -342,7 +342,7 @@ class Consequences(AbstractTask):
     # TODO: make the scorer an arg
     scorer = imp.load_source(
         "predict_with_model",
-        f"{home}/Code/creativity-item-generation/scorers/consequences/OCSAI/oscai_scoring.py",
+        f"{home}/Code/creativity-item-generation/scorers/consequences/flan-t5/ConsequencesFinetuneTLM.py",
     )
 
     def __init__(self) -> None:
@@ -565,12 +565,12 @@ class Consequences(AbstractTask):
     # TODO: implement sentiment analysis scorer
     def RunScorers(self, i: int) -> None:
         self.scorer.predict_with_model(
-            # config["itemResponseOriginalityModelDir"],
+            config["itemResponseOriginalityModelDir"],
             config["itemResponseGenOutputFile"],
-            # config["shotSelectionMetric"],
-            # config[
-            #     "itemResponseGenOutputFile"
-            # ],  # we need to chop off most columns from the first instance, so send another copy to save to
+            config["shotSelectionMetric"],
+            config[
+                "itemResponseGenOutputFile"
+            ],  # we need to chop off most columns from the first instance, so send another copy to save to
             i,  # round
         )
 

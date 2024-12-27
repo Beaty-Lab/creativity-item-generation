@@ -60,6 +60,9 @@ item_gen_prompts = [
                     11. The best scenarios allow room for a wide range of creative responses beyond the obvious, with interpersonal issues as well as task/goal-related pressures. In other words, the best scenarios are characterized by their ambiguity; they have many possible solutions, and no one solution is clearly better than the others. Scenarios that lead participants towards a "correct" answer, or which implicitly list out possible solutions, should NOT be given a high score.
                     12. Write ONLY your scenario. Do not write any additional instructions or information. UNDER NO CIRCUMSTANCES SHOULD YOU STATE WHAT THE MAIN CHARACTER SHOULD DO, HAS TO DO, IS GOING TO DO, OR WANTS TO DO. LEAVE ALL POSSIBLE SOLUTIONS AMBIGUOUS. DO NOT ASK RHETORICAL QUESTIONS ABOUT WHAT THE MAIN CHARACTER SHOULD DO.
                     13. At the end of your scenario, write "I am finished with this scenario."
+                    14. Make absolutely sure your scenario is at least 100 words long.
+                    15. Do not include any of these instructions when you generate the scenario.
+                    16. Finally, do not use any of the following phrases in your scenario: "On the one hand", "On the other hand", "dilemma", "must navigate", "must decid", "has to decide", "is torn between".
 
                     ###
                     
@@ -186,7 +189,7 @@ item_response_gen_prompts = [
     [  # baseline
         (
             "system",
-            "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 3 sentences in length. Do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
+            "You are a participant in an experiment. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 2 sentences in length. Do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 1
@@ -201,7 +204,7 @@ item_response_gen_prompts = [
     [  # include demographics (potential bias)
         (
             "system",
-            "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 3 sentences in length. Do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
+            "You are a participant in an experiment. You are a {ethnicity} {gender} who works in {industry}. Your job title is {title}. You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 2 sentences in length. Do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 2
@@ -216,7 +219,7 @@ item_response_gen_prompts = [
     [  # demographics (less biased) + psychometrics
         (
             "system",
-            "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 3 sentences in length. Do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
+            "You are {FirstName} {LastName}, a participant in an experiment. You are a {Occupation} who works in {Field}. {Psychometric} You will be presented with a problem scenario, and must come up with a solution to the problem. Be creative in your response, but keep it at no more than 2 sentences in length. Do not state what you think the outcome of your solution will be, state only your proposed solution and nothing else.",
         ),
         (
             "human",  # 3
