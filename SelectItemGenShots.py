@@ -17,6 +17,8 @@ def SelectItemGenShots(
     seed: int,
     # if not using constraint satisfaction, defaults to a greedy method that just selects items based on originality scores
     shotSelectionAlgorithm: str,
+    baseline_sim_score: float = 1.0,
+    baseline_originality: float = 2.0,
 ):
     if shotSelectionAlgorithm == "constraint satisfaction":
         return ConstraintSatisfaction(
@@ -28,6 +30,8 @@ def SelectItemGenShots(
             shotSelectionSort,
             shotSelectionAggregate,
             seed,
+            baseline_sim_score=baseline_sim_score,
+            baseline_originality=baseline_originality,
         )
     elif shotSelectionAlgorithm == "greedy":
         itemPool = pd.read_json(f"{itemPool}_round_{round}.json", orient="records")
@@ -77,6 +81,8 @@ def ConstraintSatisfaction(
     delta: float = 0.02,
     sim_gamma: float = 0.001,
     originality_gamma: float = 0.002,
+    baseline_sim_score: float = 1.0,
+    baseline_originality: float = 2.0,
 ):
     embedding_model = SentenceTransformer(
         embeddingModel
@@ -210,7 +216,7 @@ def ConstraintSatisfaction(
 
             # unlikely, but there may not be an item set that satisfies the constraints
             # default to greedy approach
-            if prior_sim_score >= 1.0 and prior_originality <= 2.0:
+            if prior_sim_score >= baseline_sim_score and prior_originality <= baseline_originality:
                 print(
                     "Failed to locate item set satisfying constraints, defaulting to greedy selection."
                 )
@@ -224,7 +230,10 @@ def ConstraintSatisfaction(
                     round,
                     shotSelectionSort,
                     shotSelectionAggregate,
-                    useConstraintSatisfaction=False,
+                    seed,
+                    shotSelectionAlgorithm="greedy",
+                    baseline_sim_score=baseline_sim_score,
+                    baseline_originality=baseline_originality,
                 )
             else:
                 if (prior_originality - originality) > delta:

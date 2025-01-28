@@ -3,13 +3,13 @@ from peft import LoraConfig, TaskType, PromptEncoderConfig
 from pathlib import Path
 home = Path.home()
 
-TASK = "CPS"
+TASK = "consequences"
 config = {
     # must be one of CPS or consequences
     "task": TASK,
     # numeric params
     "random_seed": 333,
-    "numIter": 5,
+    "numIter": 3, # TODO: fix
     "itemGenFrequencyPenalty": 0.0,
     "itemEvalFrequencyPenalty": 0.0,
     "itemResponseGenFrequencyPenalty": 0.0,
@@ -24,14 +24,14 @@ config = {
     "itemResponseGenTopP": 1.0,
     "itemGenPromptIdx": 0,
     "itemEvalPromptIdx": 0,
-    "itemResponseGenPromptIdx": 1,
+    "itemResponseGenPromptIdx": 0,
     "itemGenMaxTokens": 500,
     "itemEvalMaxTokens": 2048,
     "itemResponseGenMaxTokens": 100,  # will be the same as the max for item gen if using the same model
     "numItemsPerList": 3,
     "numItemGenerationAttempts": 4,
     "itemGenNumShots": 3,
-    "numResponsesPerItem": 30,
+    "numResponsesPerItem": 5, # TODO: fix
     # shot selection params
     "EmbeddingModel": "all-MiniLM-L6-v2",
     # non-numeric params
@@ -41,21 +41,26 @@ config = {
     "shotSelectionAlgorithm": "constraint satisfaction",
     # scoring models dirs (ignored if using OCSAI)
     # TODO: add a param for the scorer type, to switch between OCSAI and a local model
-    "itemResponseOriginalityModelDir": f"{home}/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/CPS/version_1_models/originality_model_factor_score/",
+    # "itemResponseOriginalityModelDir": f"{home}/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/CPS/version_1_models/originality_model_factor_score/", # CPS
+    "itemResponseOriginalityModelDir": f"{home}/Code/creativity-item-generation/optimize_item_gen_prompt/scoring_model/consequences/flan-t5-xl-multitask-originality-scoring", # Consequences
     "itemResponseQualityModelDir": "",
     # model dirs and flags
-    "itemGenModelName": "mistralai/Mistral-Large-Instruct-2407",
+    "itemGenModelName": "gpt-4o-mini", # "meta-llama/Llama-3.1-70B-Instruct"
     "itemEvalModelName": "",
     "itemResponseGenModelName": "meta-llama/Llama-3.1-8B-Instruct",
     "useItemEvalModel": False,
     "useItemScoring": True,  # only set to false if you want to generate a bunch of items without prompt optimization
     "useItemScoringModelPeft": False,
     # dataset dirs
-    "wordlistFile": f"{home}/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",  # "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
+    # "wordlistFile": f"{home}/Code/creativity-item-generation/outputs/creative_wordlist_5_words.tsv",  # "/home/aml7990/Code/creativity-item-generation/outputs/creative_wordlist_5_words_small.tsv",
+    "wordlistFile": None,
     # if not using a wordlist, must specify the below to dicate how many items to generate on the first pass
-    "NumSeedItems": 0,
-    "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/DemographicData.csv",
-    # "demographicsFile": None,
+    "NumSeedItems": 1, # TODO: fix
+    # "demographicsFile": "/home/aml7990/Code/creativity-item-generation/optimize_item_gen_prompt/data/PsychometricData.csv",
+    "demographicsFile": None,
+    # used in constraint satisfaction, sim score should be set to the highest possible cosine similarity (1.0) and originality the highest possible originality score (depends on scoring model)
+    "baselineSimScore": 1.0,
+    "baselineOriginality": 3.0,
     ## prompt config file ##
     "promptConfig": f"{home}/Code/creativity-item-generation/prompts/{TASK}_prompts.py",
     ## scorer training params ##

@@ -92,7 +92,7 @@ def create_scenario_responses(
                             None,
                             None,
                         )
-                    elif prompt_idx == 2:
+                    elif prompt_idx == 2: # psychometric traits
                         result = task_parser.RunItemResponseGeneration(
                             row[f"creative_scenario_round_{round}"],
                             item_response_gen_prompt,
@@ -108,7 +108,7 @@ def create_scenario_responses(
                             participant["Field"].values[0],
                             participant["Psychometric"].values[
                                 0
-                            ],  # psychometric traits
+                            ],  
                         )
                     print(result)
                 except Exception as e:
