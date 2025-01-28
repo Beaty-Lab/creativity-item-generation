@@ -562,7 +562,6 @@ class Consequences(AbstractTask):
 
     # run scoring for the task
     # to ensure correct behavior, round must always be passed
-    # TODO: implement sentiment analysis scorer
     def RunScorers(self, i: int) -> None:
         self.scorer.predict_with_model(
             config["itemResponseOriginalityModelDir"],
