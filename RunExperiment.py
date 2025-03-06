@@ -32,7 +32,7 @@ from SelectItemGenShots import SelectItemGenShots
 from optimize_item_gen_prompt import GenerateCPSResponses 
 # RLPS_RoBERTa
 from config import config
-from key import OPENAI_API_KEY, GEMINI_KEY, ANTHROPIC_API_KEY
+from key import OPENAI_API_KEY, ANTHROPIC_API_KEY
 
 # OpenAI
 from langchain_openai import ChatOpenAI
@@ -48,6 +48,8 @@ from transformers import (
 )
 from transformers import pipeline as hf_pipeline
 
+# TODO: add your task to the init function
+# TODO: this can be moved to Task.py and just pass
 from Task import init_task
 from Prompts import load_prompts
 
@@ -73,7 +75,7 @@ def _init_models(config: dict) -> Tuple:
                 max_tokens=config["itemGenMaxTokens"],
                 model_kwargs=model_kwargs,
             )
-        elif config["itemGenModelName"] == "claude-3-haiku" or config["itemGenModelName"] == "claude-3-5-haiku-20241022":
+        elif config["itemGenModelName"] == "claude-3-haiku" or config["itemGenModelName"] == "claude-3-5-haiku-20241022" or config["itemGenModelName"] == "claude-3-haiku-20240307":
             item_gen_llm = ChatAnthropic(
                 model_name=config["itemGenModelName"],
                 max_tokens_to_sample=config["itemGenMaxTokens"],
@@ -239,8 +241,6 @@ def _init_models(config: dict) -> Tuple:
     return item_gen_llm, item_eval_llm, item_response_llm
 
 
-# TODO: add your task to the init function
-# TODO: this can be moved to Task.py and just pass
 
 
 """
